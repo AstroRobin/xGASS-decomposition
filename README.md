@@ -1,2 +1,2 @@
 # xGASS-decomposition
-Analysing the results of bulge-disk decomposition for a sample of xGASS galaxies
+Some tools for performing bulge-disk decomposition on galaxies in the xGASS sample.
