@@ -238,7 +238,7 @@ bandList = c('r')
 ### Specify any Prefixes and descriptions to the output filename:
 prefix = "SingleMCMC"
 flavour = "fullsample"
-description = "Running an MCMC fit on a sample of ~730 galaxies (defined as gaving good cropped images) with a single component in the r-band."
+description = "Running an MCMC fit on a sample of ~67 galaxies which were previously not able to be cropped."
 
 ### Specify which galaxies to fit. (Requires image and PSF files.)
 ### Galaxies in the Tail end of the sample with good Cropped images (n=728)
@@ -353,21 +353,29 @@ for (galName in galList){ # loop through galaxies
       ###########################################################
       if(verb){cat("INFO: Creating Segmentation image.\n")}
       # @Robin Cook:
-      segmentation = profitProFound(image, sigma=2, skycut=1.5, tolerance=4, size=11,
+      #segmentation = profitProFound(image, sigma=2, skycut=1.5, tolerance=4, size=11,
+      #                              magzero=ZERO_POINT, gain=GAIN, header=header,
+      #                              stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+      
+      segmentation = profitProFound(image, sigma=2.75, skycut=1.0, tolerance=4, size=21,
                                     magzero=ZERO_POINT, gain=GAIN, header=header,
                                     stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+      # Find the main (central) source
+      if(verb){cat("INFO: Finding central source.\n")}
+      mainID = find_main(segmentation$segstats,dims) # The main source is the one with the smallest separation from the centre
+      
+      # Expand Segmentation image
+      segmentationDilated = profitMakeSegimDilate(image, segmentation$segim, plot=TRUE, size= 41, expand=mainID)
+      
+      
       # @Hosein Hashemi:
       #segmentation = profitProFound(image, sigma=4, skycut=2, tolerance=5, size=11, pixcut = 5,
       #                              magzero=ZERO_POINT, gain=GAIN, header=header,
       #                              stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
     
       
-      # Find the main (central) source
-      if(verb){cat("INFO: Finding central source.\n")}
-      mainID = find_main(segmentation$segstats,dims) # The main source is the one with the smallest separation from the centre
-      
       #Create segmentation image from only the central source
-      segMap = segmentation$segim
+      segMap = segmentationDilated$segim
       segMap[segMap!=mainID]=0 # only use the central source
       
       # [visualisation] Make a segmentation map image using pixels from 'image'
@@ -386,14 +394,15 @@ for (galName in galList){ # loop through galaxies
       ################################################
       if(verb){cat("INFO: Calculating sky statistics.\n")}
       # Sky Estimate:
-      mask = profitProFound(image, sigma=3, skycut=0.5, tolerance=4, size=9, magzero=ZERO_POINT, gain=GAIN, header=header)
-      skyEst = profitSkyEst(image,mask=mask$objects,radweight=1) # Structure containing sky, skyErr, skyRMS, + ...
+      #mask = profitProFound(image, sigma=3, skycut=0.5, tolerance=4, size=9, magzero=ZERO_POINT, gain=GAIN, header=header)
+      mask = segmentationDilated$objects
+      skyEst = profitSkyEst(image,mask=mask,radweight=1) # Structure containing sky, skyErr, skyRMS, + ...
       sky = skyEst$sky
       if (output && outputSkyStats){
         statsFilename = paste(galName,"_",band,"_SkyStats.png",sep='')
         png(paste(outputDir,statsFilename,sep='/'),width=1000,height=800,pointsize=16)
         par(mfrow=c(2,1), mar=c(3.5,3.5,1,2))
-        skyEst = profitSkyEst(image,mask=mask$objects,radweight=1,plot=T,xlab='Sky')  
+        skyEst = profitSkyEst(image,mask=mask,radweight=1,plot=T,xlab='Sky')  
         magplot(skyEst$radrun,xlab='radius (pixels)',ylab='Sky values',pch=16,grid=TRUE)
         abline(h=skyEst$sky,col='red',lty='dashed',lwd=2)
         dev.off()
@@ -408,6 +417,7 @@ for (galName in galList){ # loop through galaxies
       ##########################################
       if(verb){cat("INFO: Making sigma map.\n")}
       sigma = profitMakeSigma(image,sky=0.0,skyRMS=skyEst$skyRMS,gain=GAIN) # sky level is defined as 0.0 as sky has already been subtracted.
+      
       
       ### Plot input images ###
       if (output && outputInputs){
@@ -541,6 +551,8 @@ for (galName in galList){ # loop through galaxies
           magInits = c(isoFit[1],isoFit[4])
           reInits = c(10^isoFit[2],10^isoFit[5])
           nSerInits = c(10^isoFit[3],10^isoFit[6])
+        } else {
+          if(verb){cat("WARNING: isoFit solution did not converge.\n")}
         }
         
       } else { # IF nComps = 1 THEN move onto LAFit
@@ -796,9 +808,7 @@ for (galName in galList){ # loop through galaxies
         startTime = Sys.time()
         
         Data$algo.func = "LD"
-        LDFit = LaplacesDemon(profitLikeModel, Initial.Values = Data$init, Data=Data, Iterations=5e2, Algorithm='CHARM',Thinning=1,Specs=list(alpha.star=0.44), Status=50)
-        
-        LDFit$Summary1 # or LDFit$Summary1
+        LDFit = LaplacesDemon(profitLikeModel, Initial.Values = Data$init, Data=Data, Iterations=1e4, Algorithm='CHARM',Thinning=1,Specs=list(alpha.star=0.44), Status=2500)
         
         #bestLD=magtri(LDFit$Posterior2,samples=500,samptype='end')
         if(output && outputCorner){
