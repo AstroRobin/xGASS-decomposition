@@ -23,7 +23,7 @@ library(LaplacesDemon)
 HOME = paste("/",unlist(strsplit(getwd(), '/'))[2],sep="")
 
 #GALS_DIR = paste(HOME,"/robincook/Google Drive/PhD/GASS/Galaxies",sep = "")
-GALS_DIR = paste("home/rcook/Documents/PhD/GASS/Galaxies",sep = "")
+GALS_DIR = paste("/home/rcook/Documents/PhD/GASS/Galaxies",sep = "")
 PIXSCALE = 0.396 ### Specifically for SDSS
 
 ###################################################################
