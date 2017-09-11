@@ -13,13 +13,6 @@ library(magicaxis)
 library(FITSio)
 library(LaplacesDemon)
 
-# Set up parallelism
-library(doParallel)
-library(foreach)
-registerDoParallel(cores=8)
-
-library(rgl)
-library(rpanel)
 
 ###################################################################
 ######################### DEFINE CONSTANTS ########################
