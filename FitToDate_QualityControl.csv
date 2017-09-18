@@ -460,7 +460,7 @@ GASS111093,?,O,"C,D","Interacting, Offset bulge"
 GASS48604,3,B,C,
 GASS17865,2,B,"C,S",Embedded object
 GASS111067,1,O,-,Clumpy
-GASS29892,2,B,"C,B",Bright nearby source
+GASS29892,2,B,"C,B",Bright nearby object
 GASS111030,3,B,"C,S",
 GASS29871,2,B,C,
 GASS48974,1,O,"C,D","Interacting, Tidal"
@@ -536,7 +536,7 @@ GASS18335,3,O,C,
 GASS112078,2,B,"C,S",Clumpy
 GASS18421,3,O,C,
 GASS18279,1,O,"C,S",
-GASS24094,2,B,"C,S,B",Bright nearby source
+GASS24094,2,B,"C,S,B",Bright nearby object
 GASS24757,2,B,C,Diffuse spiral arms
 GASS18422,2,O,C,
 GASS30338,2,B,"C,D",Edge on
@@ -561,12 +561,12 @@ GASS30479,2,O,C,
 GASS28143,3,O,"C,S",Diffuse spiral arms
 GASS112038,2,B,"C,D",Offset bulge
 GASS30471,2,B,"C,S",Large galaxy
-GASS112051,1,G,"C,B",Bright nearby source
+GASS112051,1,G,"C,B",Bright nearby object
 GASS112109,2,B,"C,S,I",Large galaxy
 GASS24366,2,B,"C,S",Embedded source
 GASS24436,2,B,"C,S",Embedded source
 GASS24437,1,O,"C,D",Edge on
-GASS12983,2,B,"C,B",Bright nearby source
+GASS12983,2,B,"C,B",Bright nearby object
 GASS28168,1,O,"C,S",Diffuse spiral arms
 GASS112053,2,B,"C,S,I","Large galaxy, Diffuse spiral arms, Embedded object"
 GASS50550,2,B,C,
