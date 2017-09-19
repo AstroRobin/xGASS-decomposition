@@ -6,31 +6,44 @@
 ###
 
 ### TO-DO: 
-# Alter result writing to be single-line
-# use different initial Sersic index depedning on R90/r50 concentration
-# Save Sky maps to file?
-# Test without ProFitSegIm when using foreach ***
-# invisible( <command> ); no output to screen -> Dosen't work!
+# Test SkyMap measurement
 
-library(ProFit)
-library(EBImage)
-library(magicaxis)
-library(FITSio)
-library(LaplacesDemon)
-library(rgl)
-library(rpanel)
+# Get home directory
+# "HOME" specifies the machine being used:
+# if (HOME == "/home/robincook"): HP-Laptop
+# if (HOME == "/home/rcook"): ICRAR ~ Munro Cluster Computer
+# if (HOME == "/Users/robincook"): Macbook
+HOME = paste("/",unlist(strsplit(getwd(), '/'))[2],"/",unlist(strsplit(getwd(), '/'))[3],sep="")
+
+# If running on Munro (ICRAR): must specify library path:
+if (HOME == "/home/rcook") {.libPaths(c("/home/arobotham/R/x86_64-pc-linux-gnu-library/3.2",.libPaths()))}
+
+library(ProFit) # Bayesian galaxy fitting tool
+library(ProFound) # Source Extraction and Image Segmentation tool
+library(EBImage) # Image processing package
+library(magicaxis) # "Magically Pretty Plots" ~ ASGR
+library(FITSio) # .FITS file input/output
+library(LaplacesDemon) # MCMC optimisation package
+library(rgl) # 3D real-time rendering system for R
+library(rpanel) # Set of cuntions to build simple GUI controls for R functions
 
 ###################################################################
 ######################### DEFINE CONSTANTS ########################
 ###################################################################
 
-# Get home directory
-#HOME = "/home" OR "/Users"
-HOME = paste("/",unlist(strsplit(getwd(), '/'))[2],sep="")
+# The base directory for the galaxy data
+## Directory Structure:
+## > GALS_DIR
+##   > [galName]
+##     > [band]
+##       > [galName]_[band].fits          \
+##       > [galName]_[band]_PSF.fits      / *inputs*
+##     > Fitting
+##       > [form]
+##         > [galName]-[form]_[band]_[nComps]comp_{OutputType}  > *outputs*
 
-#GALS_DIR = paste(HOME,"/robincook/Google Drive/PhD/GASS/Galaxies",sep = "")
-GALS_DIR = paste(HOME,"/robincook/Documents/PhD/GASS/Galaxies",sep = "")
-PIXSCALE = 0.396 ### Specifically for SDSS
+GALS_DIR = paste(HOME,"/Documents/PhD/GASS/Galaxies",sep = "") 
+PIXSCALE = 0.396 # The pixel scale of the image (here: SDSS)
 
 ###################################################################
 
@@ -228,25 +241,24 @@ mode="LD"
 
 ### Specify the number of components to be fit
 #compList = c(1,2)
-compList = c(1)
+compList = c(2)
 
 ### Specify frequency bands
 #bandList = c('u','g','r','i','z')
 bandList = c('r')
 
 ### Specify any Prefixes and descriptions to the output filename:
-prefix = "Test"
-flavour = "testing"
-#description = "Running an MCMC fit on a sample of (~<) 333 galaxies with a single component in the r-band."
-description = "Testing FitGalaxies.R for fixed cropped images."
+prefix = "Alpha"
+flavour = "fullsample"
+description = "Alpha: First full-sample optimisation run of xGASS galaxies.\n This uses:\n - simple first-pass segmentating routine\n - matrix sky-subtraction\n - MCMC (CHARM) optimisation w/ 1e4 samples\n - initial condition improvement via isophotal fitting/Laplaces Approximation optimisation\n\nThis particular run contains only galaxies for which there are no complicatons with segmentation maps, the galaxy is too difficult to model, or the galaxy is confirmed throgh visual inspection to be fit well with a single component."
 
 ### Specify which galaxies to fit. (Requires image and PSF files.)
-#galList = c('GASS7499','GASS11956','GASS11989','GASS24741','GASS26980','GASS29555','GASS40007','GASS40222','GASS57099','GASS3666','GASS11444','GASS9815','GASS7561','GASS7058','GASS4203','GASS522','GASS11770','GASS12455','GASS13159','GASS14727','GASS17640','GASS22999','GASS23245','GASS23457','GASS25296','GASS26056','GASS26570','GASS27219','GASS28030','GASS29487','GASS39467','GASS40425','GASS40647','GASS42175','GASS45439','GASS47896','GASS12372','GASS13091','GASS109074','GASS109090','GASS109109','GASS110010','GASS110037','GASS110082','GASS111013','GASS111053','GASS112002','GASS112001','GASS112068','GASS113012','GASS113094','GASS113128','GASS113133','GASS114021','GASS114052','GASS114104','GASS124002','GASS11636')
-if (HOME=='/home'){
-  galList = c('GASS109010')
-} else if (HOME == '/Users'){ 
-  galList = c('GASS16479','GASS52045','GASS19918','GASS32308','GASS108140','GASS108148','GASS108094','GASS108133','GASS56486','GASS56509','GASS8096','GASS19989','GASS108021','GASS108051','GASS108017','GASS52297','GASS108054','GASS19949','GASS16695','GASS25752','GASS109129','GASS109023','GASS109123','GASS56662','GASS56612','GASS56650','GASS109038','GASS109101','GASS56632','GASS16655','GASS109014','GASS109018','GASS109009','GASS109060','GASS109139','GASS109021','GASS16756','GASS16815','GASS25851','GASS109036','GASS109039','GASS14712','GASS19672','GASS25844','GASS109057','GASS109099','GASS109116','GASS57017','GASS109020','GASS109045','GASS109031','GASS109089','GASS109064','GASS32937','GASS109028','GASS109082','GASS32907','GASS109118','GASS53269','GASS16841','GASS109127','GASS109126','GASS33214','GASS109103','GASS55745','GASS109097','GASS8347','GASS14784','GASS55711','GASS8349','GASS109072','GASS109073','GASS109122','GASS109100','GASS109006','GASS109065','GASS109075','GASS33469','GASS18702','GASS109077','GASS109120','GASS22822','GASS109058','GASS20305','GASS18673','GASS18686','GASS18681','GASS26040','GASS20292','GASS109106','GASS20286','GASS109080','GASS109094')
-}
+args = commandArgs(trailingOnly = TRUE) # Parse arguments
+n = as.integer(args[1]) # n is the line number within galFile for which to get the galaxy list
+
+galFile = paste(HOME,"/Documents/PhD/Fitting/Samples/Alpha/Alpha_Clean_List.txt",sep="") # The path to the file containing the lines of galaxy lists for each core on the
+lines = readLines(file)
+galList = strsplit(lines[n],'[,]')[[1]] # Get the list of galaxies
 
 # Specify whether to output images or not
 output = TRUE
@@ -282,19 +294,19 @@ for (galName in galList){ # loop through galaxies
     for (nComps in compList){ # loop through number of components.
       if(verb){cat(paste("    ",nComps,"\n",sep=""))}
       ### INPUTS ### -> otherwise looped
-      #galName = "GASS109010"
-      #band = "r"
-      #nComps = 1
+      # galName = "GASS111029"
+      # band = "r"
+      # nComps = 2
       
       ### Get image file ###
       if(verb){cat("INFO: Retrieving data.\n")}
       imgFilename = paste(galName,"_",band,".fits",sep="")
       imgFile = paste(GALS_DIR,galName,band,imgFilename,sep='/')
-      image = readFITS(imgFile)$imDat
+      image0 = readFITS(imgFile)$imDat # image0 is the non sky-subtracted image
       header = readFITS(imgFile)$hdr
-      dims = dim(image)
+      dims = dim(image0)
       # Check for NaN padding:
-      padded = is.element(NaN,image)
+      padded = is.element(NaN,image0)
       
       ### Get PSF file ###
       psfFilename = paste(galName,"_",band,"_PSF.fits",sep="")
@@ -319,30 +331,60 @@ for (galName in galList){ # loop through galaxies
       GAIN = as.numeric(header[which(header=="GAIN")+1])
       
       ### Subtract SOFT_BIAS from image and PSF ###
-      image = image - SOFT_BIAS
+      image0 = image0 - SOFT_BIAS
       psf = psf - SOFT_BIAS
       
+      
+      ############################################################
+      ###### Measure sky statistics with profoundProfound() ######
+      ############################################################
+      if(verb){cat("INFO: Creating Segmentation image.\n")}
+      
+      # Run profund to get sky statistics
+      segmentation = profoundProFound(image0, sigma=2.5, skycut=1.5, tolerance=3, size=15,
+                                    magzero=ZERO_POINT, gain=GAIN, header=header,
+                                    stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+      
+      # Extract sky measurements from segmentation output
+      sky = segmentation$sky
+      skyRMS = segmentation$skyRMS
+      skyStats = capture.output(maghist(sky,plot=FALSE)) # A string containing the outputs from calculating statistics on the sky values
+      
+      ### Plot input images ###
+      if (output && outputInputs){
+        statsFilename = paste(galName,"_",band,"_SkyStats.png",sep='')
+        png(paste(outputDir,statsFilename,sep='/'),width=900,height=300,pointsize=16)
+        par(mfrow=c(1,3), mar=c(4,1,2,1))
+        
+        magimage(sky,axes=FALSE); text(0.1*dims[1],0.925*dims[2],"Sky",adj=0,col='white',cex=1.75)
+        magimage(skyRMS,axes=FALSE); text(0.1*dims[1],0.925*dims[2],"Sky RMS",adj=0,col='white',cex=1.75)
+        maghist(sky,grid=TRUE,density=25,col='red',xlab="Sky counts",verbose=FALSE)
+        
+        dev.off()
+      }
+      
+      # Subtract the background sky
+      image = image0 - sky
       
       
       ###########################################################
       #####  Make Segmentation map with ProFit (/ProFound)  #####
       ###########################################################
       if(verb){cat("INFO: Creating Segmentation image.\n")}
-      # @Robin Cook:
-      #segmentation = profitProFound(image, sigma=2, skycut=1.5, tolerance=4, size=11,
-      #                              magzero=ZERO_POINT, gain=GAIN, header=header,
-      #                              stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
-      segmentation = profitProFound(image, sigma=2.75, skycut=1.0, tolerance=4, size=21,
-                                    magzero=ZERO_POINT, gain=GAIN, header=header,
-                                    stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+      # Extract sources
+      segmentation = profoundProFound(image, sigma=2.0, skycut=1.0, tolerance=2, size=15,
+                                      magzero=ZERO_POINT, gain=GAIN, header=header,
+                                      stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+      
       # Find the main (central) source
       if(verb){cat("INFO: Finding central source.\n")}
       mainID = find_main(segmentation$segstats,dims) # The main source is the one with the smallest separation from the centre
       
       # Expand Segmentation image
-      segmentationDilated = profitMakeSegimDilate(image, segmentation$segim, plot=TRUE, size= 41, expand=mainID)
-      
+      segmentationDilated = profitMakeSegimDilate(image, segmentation$segim, size=25, expand=mainID,
+                                                  magzero=ZERO_POINT, gain=GAIN, header=header,
+                                                  stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
       # @Hosein Hashemi:
       #segmentation = profitProFound(image, sigma=4, skycut=2, tolerance=5, size=11, pixcut = 5,
@@ -365,34 +407,11 @@ for (galName in galList){ # loop through galaxies
       }
       
       
-      ################################################
-      ###   Determine Sky statistics with ProFit   ###
-      ################################################
-      if(verb){cat("INFO: Calculating sky statistics.\n")}
-      # Sky Estimate:
-      #mask = profitProFound(image, sigma=3, skycut=0.5, tolerance=4, size=9, magzero=ZERO_POINT, gain=GAIN, header=header)
-      mask = segmentationDilated$objects
-      skyEst = profitSkyEst(image,mask=mask,radweight=1) # Structure containing sky, skyErr, skyRMS, + ...
-      sky = skyEst$sky
-      if (output && outputSkyStats){
-        statsFilename = paste(galName,"_",band,"_SkyStats.png",sep='')
-        png(paste(outputDir,statsFilename,sep='/'),width=1000,height=800,pointsize=16)
-        par(mfrow=c(2,1), mar=c(3.5,3.5,1,2))
-        skyEst = profitSkyEst(image,mask=mask,radweight=1,plot=T,xlab='Sky')  
-        magplot(skyEst$radrun,xlab='radius (pixels)',ylab='Sky values',pch=16,grid=TRUE)
-        abline(h=skyEst$sky,col='red',lty='dashed',lwd=2)
-        dev.off()
-      }
-      
-      # Subtract sky:
-      image = image - sky
-      
-      
       ##########################################
       #####   Make Sigma map with ProFit   #####
       ##########################################
       if(verb){cat("INFO: Making sigma map.\n")}
-      sigma = profitMakeSigma(image,sky=0.0,skyRMS=skyEst$skyRMS,gain=GAIN) # sky level is defined as 0.0 as sky has already been subtracted.
+      sigma = profitMakeSigma(image,sky=0.0,skyRMS=skyRMS,gain=GAIN) # sky level is defined as 0.0 as sky has already been subtracted.
       
       
       ### Plot input images ###
@@ -418,11 +437,11 @@ for (galName in galList){ # loop through galaxies
       inits = segmentation$segstats
       if (nComps == 2){
         magInits = divide_magnitude(inits$mag[mainID],frac=0.4) # Arbitrary 40%/60% division of flux to Bulge/Disk
-        reInits = c(inits$maj[mainID]*1.0,inits$maj[mainID]*3)
+        reInits = c(inits$semimaj[mainID]*1.0,inits$semimaj[mainID]*3)
         nSerInits = c(4,1)
       } else {
         magInits = c(inits$mag[mainID])
-        reInits = c(inits$maj[mainID]*1.0)
+        reInits = c(inits$semimaj[mainID]*1.0)
         nSerInits = c(4)
       }
         
@@ -534,6 +553,7 @@ for (galName in galList){ # loop through galaxies
       } else { # IF nComps = 1 THEN move onto LAFit
         isoConverge = FALSE
       } # END iosphotal 1D fitting optimisation
+      
       
       ##################################
       #####  DEFINE PROFIT INPUTS  #####
@@ -784,7 +804,7 @@ for (galName in galList){ # loop through galaxies
         startTime = Sys.time()
         
         Data$algo.func = "LD"
-        LDFit = LaplacesDemon(profitLikeModel, Initial.Values = Data$init, Data=Data, Iterations=2e2, Algorithm='CHARM',Thinning=1,Specs=list(alpha.star=0.44), Status=100)
+        LDFit = LaplacesDemon(profitLikeModel, Initial.Values = Data$init, Data=Data, Iterations=5e2, Algorithm='CHARM',Thinning=1,Specs=list(alpha.star=0.44), Status=100)
         
         #bestLD=magtri(LDFit$Posterior2,samples=500,samptype='end')
         if(output && outputCorner){
@@ -847,7 +867,7 @@ for (galName in galList){ # loop through galaxies
       
       ### Plot Model Images ###
       if(output && outputModel){
-        noise = matrix( rnorm(dims[1]*dims[2],mean=0.0,sd=skyEst$skyRMS), dims[1], dims[2]) 
+        noise = matrix( rnorm(dims[1]*dims[2],mean=0.0,sd=skyRMS), dims[1], dims[2]) 
         initModelFilename = paste(baseFilename,"_ModelImage.png",sep='')
         png(paste(outputDir,initModelFilename,sep='/'),width=1200,height=400,pointsize = 20)
         par(mfrow=c(1,3), mar=c(0.4,0.4,1,1))
@@ -855,11 +875,11 @@ for (galName in galList){ # loop through galaxies
         magimage(initImage+noise,axes=F,bad=0); 
         text(0.25*dim(image)[1],0.95*dim(image)[2],"Initial Model",col='white',cex= 2)
         text(0.715*dim(image)[1],0.05*dim(image)[2],expression(paste("N: ",mu, "=0, ", sigma,"=")),col='white',cex= 1.5)
-        text(0.9*dim(image)[1],0.05*dim(image)[2],format(skyEst$skyRMS,digits=3),col='white',cex= 1.5)
+        text(0.9*dim(image)[1],0.05*dim(image)[2],format(skyRMS,digits=3),col='white',cex= 1.5)
         magimage(optimImage+noise,axes=F,bad=0);
         text(0.3*dim(image)[1],0.95*dim(image)[2],"Optimised Model",col='white',cex= 2)
         text(0.715*dim(image)[1],0.05*dim(image)[2],expression(paste("N: ",mu, "=0, ", sigma,"=")),col='white',cex= 1.5)
-        text(0.9*dim(image)[1],0.05*dim(image)[2],format(skyEst$skyRMS,digits=3),col='white',cex= 1.5)
+        text(0.9*dim(image)[1],0.05*dim(image)[2],format(skyRMS,digits=3),col='white',cex= 1.5)
         dev.off()
       }
       
@@ -901,26 +921,28 @@ for (galName in galList){ # loop through galaxies
         cat(paste("Num. Components: ",nComps,"\n\n",sep=""))
         cat(paste("Form: ",prefix,"\n",sep=""))
         cat(paste("Flavour: ",flavour,"\n",sep=""))
-        cat(paste("Description:   ",description,"\n",sep=""))
-        cat(paste("Date: ",Sys.time(),"\n\n",sep=""))
-        cat(paste("Elapsed time: ",elapsedTime,"\n",sep=""))
+        cat(paste("\nDescription:   ","\n",description,"\n",sep=""))
+        cat(paste("\nDate: ",Sys.time(),"\n",sep=""))
+        cat(paste("\nElapsed time: ",elapsedTime,"\n",sep=""))
         
         cat("\n\n>> Inputs:\n")
         cat(paste("Base directory: ",outputDir,"\n",sep=""))
         cat(paste("Image: ",imgFile,"\n",sep=""))
-        cat(paste(" Dimensions: ",dims[1]," x ",dims[2],"\n",sep=""))
+        cat(paste(" Dimensions: ",dims[1]," x ",dims[2]," (",dims[1]*PIXSCALE/60.0,"' x ",dims[1]*PIXSCALE/60.0,"')","\n",sep=""))
         cat(paste(" Padding: ",padded,"\n",sep=""))
         cat(paste("PSF: ",psfFile,"\n",sep=""))
-        cat(paste("Zero point: ",ZERO_POINT,"\n",sep=""))
+        cat(paste("\nZero point: ",ZERO_POINT,"\n",sep=""))
         cat(paste("Gain: ",GAIN,"\n",sep=""))
         cat(paste("Soft-bias: ",SOFT_BIAS,"\n",sep=""))
-        cat(paste("Sky: ",skyEst$sky,"\n",sep=""))
-        cat(paste("Sky RMS: ",skyEst$skyRMS,"\n",sep=""))
         
+        cat("\n\n>> Sky Statistics:\n")
+        cat(gsub("\\[1\\]","\n",skyStats)) # Print the sky statistics: the output from maghist() of profoundMakeSkyGrid()
         
         cat("\n\n>> Segmentation:\n")
         cat(paste("Num. Objects: ",length(segmentation$segstats[[1]]),"\n",sep=""))
         cat(paste("MainID: ",mainID,"\n",sep=""))
+        cat("\n Stats for target object:\n")
+        print(segmentation$segstats[mainID,])
         
         cat("\n\n>> Initial Conditions:\n")
         print(modellist$sersic)
@@ -968,6 +990,7 @@ for (galName in galList){ # loop through galaxies
         print(optimModel$sersic)
         
         cat("\n\n>> Flags:\n")
+        # Check if optimised parameters are stuck to interval bounds
         for (key in names(optimModel$sersic)){
           for (n in seq(1,nComps)){
             if (optimModel$sersic[[key]][n] %in% intervals$sersic[[key]][[n]] && tofit$sersic[[key]][n]){
@@ -976,22 +999,18 @@ for (galName in galList){ # loop through galaxies
           }
         }
         if(segmentation$segstats[mainID,]$edge_frac < 0.8){cat(paste('\n - Segmentation boundary = ',segmentation$segstats[mainID,]$edge_frac,'\n',sep=''))}
+        if(segmentation$segstats[mainID,]$edge_frac < 0.8){cat(paste('\n - Segmentation boundary = ',segmentation$segstats[mainID,]$edge_frac,'\n',sep=''))}
         if(segmentation$segstats[mainID,]$edge_excess > 1.0){cat(paste('\n - Segmentation edge excess = ',segmentation$segstats[mainID,]$edge_excess,'\n',sep=''))}
         if(segmentation$segstats[mainID,]$asymm > 0.2){cat(paste('\n - Segmentation asymmetry = ',segmentation$segstats[mainID,]$asymm,'\n',sep=''))}
+        if(segmentation$segstats[mainID,]$flag_border != 0){cat(paste('\n - Segmentation borders with: ',segmentation$segstats[mainID,]$flag_border,'\n',sep=''))}
         
         sink()
       }
       
-      ### Append to optimization archive
-      if (prefix == ""){
-        resultFilename = paste(HOME,"/robincook/Google Drive/PhD/Fitting/Results/Results","_",band,"_",nComps,"comp",".csv",sep = "")
-      }else{
-        #resultFilename = paste(HOME,"/robincook/Google Drive/PhD/Fitting/Results/Results-",prefix,"_",band,"_",nComps,"comp",".csv",sep = "")
-        resultFilename = paste(HOME,"/robincook/Documents/PhD/Fitting/Results/Results-",prefix,"_",band,"_",nComps,"comp",".csv",sep = "")
-      }
-      append_output(resultFilename,galName,nComps,modellist$sersic,optimModel$sersic)
+      ##################################
+      ##### Save workspace to file #####
+      ##################################
       
-      ### Save workspace to file
       if(output && outputWorkspace){  
         workspaceFilename = paste(baseFilename,"_WorkSpace.RData",sep='')
         save.image(paste(outputDir,workspaceFilename,sep='/'))
