@@ -24,8 +24,10 @@ library(EBImage) # Image processing package
 library(magicaxis) # "Magically Pretty Plots" ~ ASGR
 library(FITSio) # .FITS file input/output
 library(LaplacesDemon) # MCMC optimisation package
-library(rgl) # 3D real-time rendering system for R
-library(rpanel) # Set of cuntions to build simple GUI controls for R functions
+if (HOME != '/home/rcook'){
+  library(rgl) # 3D real-time rendering system for R
+  library(rpanel) # Set of cuntions to build simple GUI controls for R functions
+}
 
 ###################################################################
 ######################### DEFINE CONSTANTS ########################
@@ -256,8 +258,8 @@ description = "Alpha: First full-sample optimisation run of xGASS galaxies.\n Th
 args = commandArgs(trailingOnly = TRUE) # Parse arguments
 n = as.integer(args[1]) # n is the line number within galFile for which to get the galaxy list
 
-galFile = paste(HOME,"/Documents/PhD/Fitting/Samples/Alpha/Alpha_Clean_List.txt",sep="") # The path to the file containing the lines of galaxy lists for each core on the
-lines = readLines(file)
+galFile = paste(HOME,"/Documents/PhD/Fitting/Samples/Alpha/Alpha_ServerList.txt",sep="") # The path to the file containing the lines of galaxy lists for each core on the
+lines = readLines(galFile)
 galList = strsplit(lines[n],'[,]')[[1]] # Get the list of galaxies
 
 # Specify whether to output images or not
