@@ -1,5 +1,9 @@
 ###
-# Script to cycle through galaxy fitting for a list of specified galaxies in ugriz frequency bands for 1 and 2 components.
+# A wrapper around various likelihood optimisation and image segmentation functions in ProFit/ProFound (developed by Aaron Robotham)
+# to perform bulge/disk decomposition on SDSS images of galaxies within the xGASS sample. The general flow of the program is:
+#
+# Specify fitting parameters: galaxy list; SDSS filter; num. components; etc. --> Get data (image + PSF) --> Create output directories
+# --> Measure & Subtract sky statistics --> Get segmentation map --> Define model & fitting params --> Optimise Model! --> write results to file.
 #
 # Author: Robin Cook
 # Date: 05/05/17
@@ -7,6 +11,7 @@
 
 ### TO-DO: 
 # Test SkyMap measurement
+# Soft-code
 
 # Get home directory
 # "HOME" specifies the machine being used:
@@ -240,7 +245,8 @@ for (galName in galList){ # loop through galaxies
   for (band in bandList){ # loop through bands
     for (nComps in compList){ # loop through number of components.
       if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
-      ### INPUTS ### -> otherwise looped
+      
+      ### INPUTS ### otherwise looped
       # galName = "GASS111029"
       # band = "r"
       # nComps = 2
@@ -252,7 +258,7 @@ for (galName in galList){ # loop through galaxies
       image0 = readFITS(imgFile)$imDat # image0 is the non sky-subtracted image
       header = readFITS(imgFile)$hdr
       dims = dim(image0)
-      # Check for NaN padding:
+      # Check for NaN padding in images where the frame is present.
       padded = is.element(NaN,image0)
       
       ### Get PSF file ###
@@ -268,8 +274,8 @@ for (galName in galList){ # loop through galaxies
       outputDir = paste(GALS_DIR,galName,"Fitting",prefix,sep='/')
       dir.create(outputDir, showWarnings = FALSE)  # Suppress warning if directory already exists.
       baseFilename = paste(galName,"-",prefix,"_",band,"_",nComps,"comp",sep="")
-      	
-
+      
+      
       ### Get information from FITS header ###
       # Referencing keywords in header
       # <VALUE> = as.numeric(header[which(header=="<KEYWORD>")+1])
