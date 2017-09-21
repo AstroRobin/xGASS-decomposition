@@ -33,18 +33,19 @@ if (HOME != '/home/rcook'){
 ######################### DEFINE CONSTANTS ########################
 ###################################################################
 
-# The base directory for the galaxy data
-## Directory Structure:
-## > GALS_DIR
-##   > [galName]
-##     > [band]
-##       > [galName]_[band].fits          \
-##       > [galName]_[band]_PSF.fits      / *inputs*
-##     > Fitting
-##       > [form]
-##         > [galName]-[form]_[band]_[nComps]comp_{OutputType}  > *outputs*
+### The base directory for the galaxy data
+# Directory Structure:
+# > GALS_DIR
+#   > [galName]
+#     > [band]
+#       > [galName]_[band].fits          \
+#       > [galName]_[band]_PSF.fits      / *inputs*
+#     > Fitting
+#       > [form]
+#         > [galName]-[form]_[band]_[nComps]comp_{OutputType}  > *outputs*
 
-GALS_DIR = paste(HOME,"/Documents/PhD/GASS/Galaxies",sep = "") 
+#GALS_DIR = paste(HOME,"/Documents/PhD/GASS/Galaxies",sep = "")
+GALS_DIR = paste(HOME,"/home/robincook/Google Drive/PhD/Miscellaneous/Lange2016_Galaxies/Galaxies",sep = "")
 PIXSCALE = 0.396 # The pixel scale of the image (here: SDSS)
 
 ###################################################################
@@ -53,8 +54,15 @@ PIXSCALE = 0.396 # The pixel scale of the image (here: SDSS)
 ######################### DEFINE FUNCTIONS ########################
 ###################################################################
 
-plotSegIm = function(image, segim, mask, sky = 0, ...) 
+plotSegIm = function(image, segim, mask, sky = 0, ...) # A modified version of the profoundPlotSegim() function to adjust colours and linewidths
 {
+  # <param: image [array (float, 2)]> - The image matrix
+  # <param: segim [array (int, 2)]> - The segmentation map matrix create with profoundProfound()
+  # <param: mask [array (int, 2)]> - The mask matrix.
+  # <param: sky [float]> - The value of the sky.
+  
+  # <return: NULL>
+  
   image = image - sky
   temp = magimage(image, ...)
   if (min(segim, na.rm = TRUE) != 0) {
@@ -99,30 +107,8 @@ find_main = function(sourceList,dims) # function to find the main (central) sour
   
   # Calculate separation of source centres.
   for (ii in seq(1,nSources)) {sepArr[ii] = sqrt( (sourceList$xcen[ii] - x0)^2 + (sourceList$ycen[ii] - y0)^2 )}
-  #print(sepArr)
   mainID = which.min(sepArr) # The main source is the one with the smallest separation from the centre
   return(mainID)
-}
-
-write_component = function(model,comp,state) # Write a model sersic component to file
-{
-  # <param: model [list]> - The modellist$sersic modellist
-  # <param: comp [int]> - The component to be written
-  # <param: state [char] - The status of the model [initial | optimised] >
-  # <return: None>
-  
-  cat(paste(comp,
-            state,
-            model$xcen[comp],
-            model$ycen[comp],
-            model$mag[comp],
-            model$re[comp],
-            model$nser[comp],
-            model$ang[comp],
-            model$axrat[comp],
-            model$box[comp],
-            sep=','),append=T)
-  cat('\n',append=T)
 }
 
 write_output = function(file,name,nComps,init,optim){ # Write optimisation result to file
@@ -131,96 +117,30 @@ write_output = function(file,name,nComps,init,optim){ # Write optimisation resul
   # <param: nComps [int (1|2)]> - The number of components for the model (1 or 2).
   # <param: init [list]> - A list of initial values for the fit.
   # <param: optim [list]> - A list of optimised values.
-  # <return: None>
+  
+  # <return: NULL>
   
   # Determine the number of columns in the table.
   nCols = 2*nComps*8 + 1 # 2 (inital/optimised) * nComps (1|2) * 8 (num. parameters in Sersic Profile) + 1 (Galaxy ID)
   
+  # Write initial and optimised parameters ro file
   if (nComps == 1){
     write(c("GASSID","x_in","y_in","mag_in","re_in","nser_in","ang_in","axrat_in","box_in","x_out","y_out","mag_out","re_out","nser_out","ang_out","axrat_out","box_out"),file=file,ncolumns=nCols,sep=',',append=FALSE)
     write(c(name,
-            init$xcen[1],
-            init$ycen[1],
-            init$mag[1],
-            init$re[1],
-            init$nser[1],
-            init$ang[1],
-            init$axrat[1],
-            init$box[1],
-            optim$xcen[1],
-            optim$ycen[1],
-            optim$mag[1],
-            optim$re[1],
-            optim$nser[1],
-            optim$ang[1],
-            optim$axrat[1],
-            optim$box[1]),
+            init$xcen[1],init$ycen[1],init$mag[1],init$re[1],init$nser[1],init$ang[1],init$axrat[1],init$box[1],
+            optim$xcen[1],optim$ycen[1],optim$mag[1],optim$re[1],optim$nser[1],optim$ang[1],optim$axrat[1],optim$box[1]),
           file=file,ncolumns=nCols,sep=',',append=TRUE)
   } else if (nComps == 2){
     write(c("GASSID","x1_in","x2_in","y1_in","y2_in","mag1_in","mag2_in","re1_in","re2_in","nser1_in","nser2_in","ang1_in","ang2_in","axrat1_in","axrat2_in","box1_in","box2_in","x1_out","x2_out","y1_out","y2_out","mag1_out","mag2_out","re1_out","re2_out","nser1_out","nser2_out","ang1_out","ang2_out,axrat1_out,axrat2_out,box1_out,box2_out"),file=file,ncolumns=nCols,sep=',',append=FALSE)
-    write(c(name,
-            init$xcen[1],init$xcen[2],
-            init$ycen[1],init$ycen[2],
-            init$mag[1],init$mag[2],
-            init$re[1],init$re[2],
-            init$nser[1],init$nser[2],
-            init$ang[1],init$ang[2],
-            init$axrat[1],init$axrat[2],
-            init$box[1],init$box[2],
-            optim$xcen[1],optim$xcen[2],
-            optim$ycen[1],optim$ycen[2],
-            optim$mag[1],optim$mag[2],
-            optim$re[1],optim$re[2],
-            optim$nser[1],optim$nser[2],
-            optim$ang[1],optim$ang[2],
-            optim$axrat[1],optim$axrat[2]
-            ,optim$box[1],optim$box[2]),
+    write(c(name, 
+            init$xcen[1],init$xcen[2], init$ycen[1],init$ycen[2], init$mag[1],init$mag[2], init$re[1],init$re[2], init$nser[1],init$nser[2], init$ang[1],init$ang[2], init$axrat[1],init$axrat[2], init$box[1],init$box[2], 
+            optim$xcen[1],optim$xcen[2], optim$ycen[1],optim$ycen[2], optim$mag[1],optim$mag[2], optim$re[1],optim$re[2], optim$nser[1],optim$nser[2], optim$ang[1],optim$ang[2], optim$axrat[1],optim$axrat[2], optim$box[1],optim$box[2]),
           file=file,ncolumns=nCols,sep=',',append=TRUE)
   }
-  
-}
-
-append_output = function(file,name,nComps,init,optim) # Append optimisation results to master file
-{
-  # <param: file [str]> - The file to append the results to.
-  # <param: name [str]> - The name of the galaxy.
-  # <param: nComps [int (1|2)]> - The number of components for the model (1 or 2).
-  # <param: init [list]> - A list of initial values for the fit.
-  # <param: optim [list]> - A list of optimised values.
-  # <return: None>
-  
-  # Check if file already exists; if not, create it!
-  if (!file.exists(file)){
-    sink(resultFilename,type="output")
-    if (nComps == 1){
-      writeLines("GASSID,x_in,y_in,mag_in,re_in,nser_in,ang_in,axrat_in,box_in,x_out,y_out,mag_out,re_out,nser_out,ang_out,axrat_out,box_out")
-    }else if (nComps == 2){
-      writeLines("GASSID,x1_in,x2_in,y1_in,y2_in,mag1_in,mag2_in,re1_in,re2_in,nser1_in,nser2_in,ang1_in,ang2_in,axrat1_in,axrat2_in,box1_in,box2_in,x1_out,x2_out,y1_out,y2_out,mag1_out,mag2_out,re1_out,re2_out,nser1_out,nser2_out,ang1_out,ang2_out,axrat1_out,axrat2_out,box1_out,box2_out")
-    }
-    sink()
-  }
-  
-  lines = read.csv(file,stringsAsFactors=FALSE)
-  index = which(apply(lines, 1, function(x) any(grepl(name, x))))
-  if (length(index)[1]!=0){
-    if (nComps==2){
-      lines[index,] = c(name,init$xcen[1],init$xcen[2],init$ycen[1],init$ycen[2],init$mag[1],init$mag[2],init$re[1],init$re[2],init$nser[1],init$nser[2],init$ang[1],init$ang[2],init$axrat[1],init$axrat[2],init$box[1],init$box[2],optim$xcen[1],optim$xcen[2],optim$ycen[1],optim$ycen[2],optim$mag[1],optim$mag[2],optim$re[1],optim$re[2],optim$nser[1],optim$nser[2],optim$ang[1],optim$ang[2],optim$axrat[1],optim$axrat[2],optim$box[1],optim$box[2])
-    }else{
-      lines[index,] = c(name,init$xcen[1],init$ycen[1],init$mag[1],init$re[1],init$nser[1],init$ang[1],init$axrat[1],init$box[1],optim$xcen[1],optim$ycen[1],optim$mag[1],optim$re[1],optim$nser[1],optim$ang[1],optim$axrat[1],optim$box[1])
-    }
-  }else{
-    if (nComps==2){
-      lines[nrow(lines) + 1,] = c(name,init$xcen[1],init$xcen[2],init$ycen[1],init$ycen[2],init$mag[1],init$mag[2],init$re[1],init$re[2],init$nser[1],init$nser[2],init$ang[1],init$ang[2],init$axrat[1],init$axrat[2],init$box[1],init$box[2],optim$xcen[1],optim$xcen[2],optim$ycen[1],optim$ycen[2],optim$mag[1],optim$mag[2],optim$re[1],optim$re[2],optim$nser[1],optim$nser[2],optim$ang[1],optim$ang[2],optim$axrat[1],optim$axrat[2],optim$box[1],optim$box[2])
-    }else{
-      lines[nrow(lines) + 1,] = c(name,init$xcen[1],init$ycen[1],init$mag[1],init$re[1],init$nser[1],init$ang[1],init$axrat[1],init$box[1],optim$xcen[1],optim$ycen[1],optim$mag[1],optim$re[1],optim$nser[1],optim$ang[1],optim$axrat[1],optim$box[1])
-    }
-  }
-
-  write.csv(lines,file,quote=FALSE,row.names=FALSE)
 }
 
 
-add_pseudo_bulge = function(model) # Add a zero-point magnitude bulge
+add_pseudo_bulge = function(model) # Add a zero-point magnitude bulge to the model
 {
   # <param: model [list]> - The modellist from profitMakeModel()
   # <return: pseudo [list]> - A (pseudo) modellist containing a second component; i.e., a duplicate with "zero magnitude".
@@ -249,7 +169,13 @@ compList = c(2)
 #bandList = c('u','g','r','i','z')
 bandList = c('r')
 
-### Specify any Prefixes and descriptions to the output filename:
+### Specifying the Optimisation run metedata:
+# prefix: This specifies the 'form' of this particular optimisation run and will be used in the filenames of output files (e.g. Test, NoInits, Alpha, etc.)
+# flavour: The purpose of this optimisation run:
+#       - testing: for testing new features
+#       - example: for running an example optimisation
+#       - fullsample: running the full sample of galaxies
+# description: A verbose description of the optimisation run.
 prefix = "Alpha"
 flavour = "fullsample"
 description = "Alpha: First full-sample optimisation run of xGASS galaxies.\n This uses:\n - simple first-pass segmentating routine\n - matrix sky-subtraction\n - MCMC (CHARM) optimisation w/ 1e4 samples\n - initial condition improvement via isophotal fitting/Laplaces Approximation optimisation\n\nThis particular run contains only galaxies for which there are no complicatons with segmentation maps, the galaxy is too difficult to model, or the galaxy is confirmed throgh visual inspection to be fit well with a single component."
@@ -288,13 +214,11 @@ verb = TRUE
 ########################## OPTIMISATION ###########################
 ###################################################################
 
-count = 1
+count = 1 # A running count of galaxies
 for (galName in galList){ # loop through galaxies
-  if(verb){cat(paste("\n",galName," (",count,"/",length(galList),")\n",sep=""))}
   for (band in bandList){ # loop through bands
-    if(verb){cat(paste("  ",band,"\n",sep=""))}
     for (nComps in compList){ # loop through number of components.
-      if(verb){cat(paste("    ",nComps,"\n",sep=""))}
+      if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
       ### INPUTS ### -> otherwise looped
       # galName = "GASS111029"
       # band = "r"
@@ -316,7 +240,7 @@ for (galName in galList){ # loop through galaxies
       psf = readFITS(psfFile)$imDat
       
       ### Create outputs folder ###
-      if(verb){cat("INFO: Creating output directories\n")}
+      if(verb){cat("INFO: Creating output directories.\n")}
       dir.create(paste(GALS_DIR,galName,"Fitting",sep='/'), showWarnings = FALSE) # Suppress warning if directory already exists.
       # Check Prefix validity:
       if (prefix == '' || is.null(prefix)){print("WARNING: Setting prefix to 'Default'"); prefix = 'Default'}
@@ -502,7 +426,7 @@ for (galName in galList){ # loop through galaxies
         }
         
         # Check for divergence
-        isoConverge = TRUE # IF isoConverge=TRUE THEN use these as initial conditions. ELSE run LaplacesApproximation()
+        isoConverge = TRUE # IF isoConverge=TRUE THEN use these as initial conditions. ELSE run acesApproximation()
         convParams = list("mag1"=TRUE,"re1"=TRUE,"nser1"=TRUE,"mag2"=TRUE,"re2"=TRUE,"nser2"=TRUE)
         
         if(verb){cat("INFO: Isophotal 1D fitting results:\n")}
@@ -753,9 +677,9 @@ for (galName in galList){ # loop through galaxies
       #####   Optimise Model (+ timing)   #####
       #########################################
       
-      # IF the result from 1D isophotal fitting did not converge THEN attempt a LaplaceApproximation() fit:
+      # IF the result from 1D isophotal fitting did not converge THEN attempt a aceApproximation() fit:
       if (improveInits==TRUE && isoConverge==FALSE) { # LaplaceApproximation LM fit
-        if(verb){cat("INFO: Attempting to improve inital conditions with LaplaceApproximation()")}
+        if(verb){cat("INFO: Attempting to improve inital conditions with LaplaceApproximation()\n")}
         Data$algo.func = "LA" # Change optimising algorithm
         LAFit = LaplaceApproximation(profitLikeModel,parm = Data$init, Data = Data, Iterations=1e3,
                                      Method = 'LM', CovEst='Identity', sir = FALSE)
@@ -799,6 +723,7 @@ for (galName in galList){ # loop through galaxies
         
       }  # END LAFit optimisation
       
+      if(verb){cat(paste("\n\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n\n",sep=""))}
       
       ### Laplaces Demon (Full MCMC)
       if (mode == "LD"){
@@ -806,7 +731,7 @@ for (galName in galList){ # loop through galaxies
         startTime = Sys.time()
         
         Data$algo.func = "LD"
-        LDFit = LaplacesDemon(profitLikeModel, Initial.Values = Data$init, Data=Data, Iterations=5e2, Algorithm='CHARM',Thinning=1,Specs=list(alpha.star=0.44), Status=100)
+        LDFit = LaplacesDemon(profitLikeModel, Initial.Values = Data$init, Data=Data, Iterations=1e4, Algorithm='CHARM',Thinning=1,Specs=list(alpha.star=0.44), Status=2500)
         
         #bestLD=magtri(LDFit$Posterior2,samples=500,samptype='end')
         if(output && outputCorner){
