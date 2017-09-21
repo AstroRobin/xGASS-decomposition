@@ -151,25 +151,25 @@ add_pseudo_bulge = function(model) # Add a zero-point magnitude bulge to the mod
   return(pseudo)
 }
 
-
 ###################################################################
+
 
 ###################################################################
 ################### DEFINE FITTING PARAMETERS #####################
 ###################################################################
 
-### Fitting Mode ("optim":BFGS , "LA":LaplacesApproximation , "LD":Full-MCMC)
+### Fitting Mode ("optim":BFGS [not supported], "LA":LaplacesApproximation [not supported], "LD":Full-MCMC) ###
 mode="LD"
 
-### Specify the number of components to be fit
+### Specify the number of components to be fit ###
 #compList = c(1,2)
 compList = c(2)
 
-### Specify frequency bands
+### Specify frequency band(s) ###
 #bandList = c('u','g','r','i','z')
 bandList = c('r')
 
-### Specifying the Optimisation run metedata:
+### Specifying the Optimisation run metedata: ###
 # prefix: This specifies the 'form' of this particular optimisation run and will be used in the filenames of output files (e.g. Test, NoInits, Alpha, etc.)
 # flavour: The purpose of this optimisation run:
 #       - testing: for testing new features
@@ -180,15 +180,36 @@ prefix = "Alpha"
 flavour = "fullsample"
 description = "Alpha: First full-sample optimisation run of xGASS galaxies.\n This uses:\n - simple first-pass segmentating routine\n - matrix sky-subtraction\n - MCMC (CHARM) optimisation w/ 1e4 samples\n - initial condition improvement via isophotal fitting/Laplaces Approximation optimisation\n\nThis particular run contains only galaxies for which there are no complicatons with segmentation maps, the galaxy is too difficult to model, or the galaxy is confirmed throgh visual inspection to be fit well with a single component."
 
-### Specify which galaxies to fit. (Requires image and PSF files.)
-args = commandArgs(trailingOnly = TRUE) # Parse arguments
-n = as.integer(args[1]) # n is the line number within galFile for which to get the galaxy list
+### Specify which galaxies to fit. (Requires image and PSF files.) ###
+args = commandArgs(trailingOnly = TRUE) # Parse arguments (if given)
+if (length(args) == 0) { # galaxy list not given in command-line args
+  galList = c("GASS110042")
+  lineNum = NULL
+} else { # galaxy list was given in command-line args
+  galFile = args[1] # The path to the file containing the comma-separated line(s) for the input galaxy list(s).
+  lines = readLines(galFile)
+  
+  # Check for line number reference; i.e. if the file has many lists.
+  if (length(args) > 1){
+    lineNum = as.integer(args[2])
+    if (lineNum > length(lines)){
+      cat("\nWARNING: Line number reference is greater than the number of lines. Setting line number to 1.\n")
+      lineNum = 1
+    }
+  } else {
+    lineNum = seq(1,length(lines))
+  }
+  
+  if (length(lineNum) > 1){
+    galList = c()
+    for (n in lineNum) {galList = c(galList, strsplit(lines[n],'[,]')[[1]])}
+  } else {
+    galList = strsplit(lines[lineNum],'[,]')[[1]] # Get the list of galaxies
+  }
+  
+}
 
-galFile = paste(HOME,"/Documents/PhD/Fitting/Samples/Alpha/Alpha_ServerList.txt",sep="") # The path to the file containing the lines of galaxy lists for each core on the
-lines = readLines(galFile)
-galList = strsplit(lines[n],'[,]')[[1]] # Get the list of galaxies
-
-# Specify whether to output images or not
+### Specify whether to output images or not ###
 output = TRUE
 
 outputInputs = TRUE # Inputs: image, segmentation, sigma map, PSF
@@ -850,6 +871,12 @@ for (galName in galList){ # loop through galaxies
         cat(paste("Flavour: ",flavour,"\n",sep=""))
         cat(paste("\nDescription:   ","\n",description,"\n",sep=""))
         cat(paste("\nDate: ",Sys.time(),"\n",sep=""))
+        
+        if (length(args) > 0){
+          cat(paste("\nGalaxy retrieved from file:  \n  ",galFile,"\n",sep=""))
+          cat(paste("Line number = ",lineNum,"\n",sep=""))
+        }
+        
         cat(paste("\nElapsed time: ",elapsedTime,"\n",sep=""))
         
         cat("\n\n>> Inputs:\n")
