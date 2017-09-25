@@ -44,8 +44,8 @@ if (HOME != '/home/rcook'){
 #       > [form]
 #         > [galName]-[form]_[band]_[nComps]comp_{OutputType}  > *outputs*
 
-#GALS_DIR = paste(HOME,"/Documents/PhD/GASS/Galaxies",sep = "")
-GALS_DIR = paste(HOME,"/Google Drive/PhD/Miscellaneous/Lange2016_Galaxies/Galaxies",sep = "")
+GALS_DIR = paste(HOME,"/Documents/PhD/GASS/Galaxies",sep = "")
+#GALS_DIR = paste(HOME,"/Google Drive/PhD/Miscellaneous/Lange2016_Galaxies/Galaxies",sep = "")
 PIXSCALE = 0.396 # The pixel scale of the image (here: SDSS)
 
 ###################################################################
@@ -158,8 +158,12 @@ add_pseudo_bulge = function(model) # Add a zero-point magnitude bulge to the mod
 #################### SETUP INITIAL CONDITIONS #####################
 ###################################################################
 
-reFracs = array(c(c(1.0,1.0),c(0.75,1.5),c(0.5,2.0),c(0.33,3.0)),dim=c(2,4))
-magFracs = seq(0.6,0.1,by=-0.1)
+### Lange+2016 initial guesses:
+#reFracs = array(c(c(1.0,1.0),c(0.75,1.5),c(0.5,2.0),c(0.33,3.0)),dim=c(2,4))
+#magFracs = seq(0.6,0.1,by=-0.1)
+
+### Segmentation Dilation:
+dilation = seq(5,71,by=6)
 
 ###################################################################
 ################### DEFINE FITTING PARAMETERS #####################
@@ -183,14 +187,14 @@ bandList = c('r')
 #       - example: for running an example optimisation
 #       - fullsample: running the full sample of galaxies
 # description: A verbose description of the optimisation run.
-prefix = "Inits"
+prefix = "Dilation"
 flavour = "inits"
-description = "Replicating optimisation runs performed by Lange+2016 on a difficult galaxy G32362 in the SDSS r-band image."
+description = "Testing the importance of dilation in the segmentation maps of galaxies by running optimisations on the same galaxy for different dilation sizes."
 
 ### Specify which galaxies to fit. (Requires image and PSF files.) ###
 args = commandArgs(trailingOnly = TRUE) # Parse arguments (if given)
 if (length(args) == 0) { # galaxy list not given in command-line args
-  galList = c("G32362")
+  galList = c("GASS9695")
   lineNum = NULL
 } else { # galaxy list was given in command-line args
   galFile = args[1] # The path to the file containing the comma-separated line(s) for the input galaxy list(s).
@@ -242,10 +246,10 @@ verb = TRUE
 ###################################################################
 
 
-totCount = length(reFracs)/2 * length(magFracs)
+totCount = length(dilation)
 count = 1 # A running count of number of runs.
-for (ii in seq(1,length(reFracs)/2)){
-for (jj in seq(1,length(magFracs))){
+
+for (ii in seq(1,length(dilation))){
   
 for (galName in galList){ # loop through galaxies
   for (band in bandList){ # loop through bands
@@ -277,7 +281,7 @@ for (galName in galList){ # loop through galaxies
       dir.create(paste(GALS_DIR,galName,"Fitting",sep='/'), showWarnings = FALSE) # Suppress warning if directory already exists.
       # Check Prefix validity:
       if (prefix == '' || is.null(prefix)){print("WARNING: Setting prefix to 'Default'"); prefix = 'Default'}
-      initStr = paste("Re:",reFracs[1,ii],"-",reFracs[2,ii],"_Mag:",magFracs[jj],"-",1.0-magFracs[jj],sep="")
+      initStr = paste("Size:",dilation[ii],sep="")
       outputDir = paste(GALS_DIR,galName,"Fitting",prefix,initStr,sep='/')
       dir.create(outputDir, recursive=TRUE, showWarnings = FALSE)  # Suppress warning if directory already exists.
       baseFilename = paste(galName,"-",prefix,"_",band,"_",nComps,"comp",sep="")
@@ -332,7 +336,7 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Creating Segmentation image.\n")}
       
       # Extract sources
-      segmentation = profoundProFound(image, sigma=2.0, skycut=1.0, tolerance=2, size=15,
+      segmentation = profoundProFound(image, sigma=2.0, skycut=1.0, tolerance=2,
                                       magzero=ZERO_POINT, gain=GAIN, header=header,
                                       stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
@@ -341,7 +345,7 @@ for (galName in galList){ # loop through galaxies
       mainID = find_main(segmentation$segstats,dims) # The main source is the one with the smallest separation from the centre
       
       # Expand Segmentation image
-      segmentationDilated = profitMakeSegimDilate(image, segmentation$segim, size=25, expand=mainID,
+      segmentationDilated = profitMakeSegimDilate(image, segmentation$segim, size=5, expand=mainID,
                                                   magzero=ZERO_POINT, gain=GAIN, header=header,
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
@@ -390,13 +394,13 @@ for (galName in galList){ # loop through galaxies
       #####  Get Initial Conditions  #####
       ####################################
       if(verb){cat("INFO: Getting initial conditions.\n")}
-      improveInits = FALSE # Whether to try isophotal fitting or quick LaplacesApproximation() to improve initial conditions
+      improveInits = TRUE # Whether to try isophotal fitting or quick LaplacesApproximation() to improve initial conditions
       
       # Rough Initial conditions from segmentation objects
       inits = segmentation$segstats
       if (nComps == 2){
-        magInits = divide_magnitude(inits$mag[mainID],frac=magFracs[jj]) # Arbitrary 40%/60% division of flux to Bulge/Disk
-        reInits = c(inits$semimaj[mainID]*reFracs[1,ii],inits$semimaj[mainID]*reFracs[2,ii])
+        magInits = divide_magnitude(inits$mag[mainID],frac=0.4) # Arbitrary 40%/60% division of flux to Bulge/Disk
+        reInits = c(inits$semimaj[mainID]*1.0,inits$semimaj[mainID]*3.0)
         nSerInits = c(4,1)
       } else {
         magInits = c(inits$mag[mainID])
@@ -989,4 +993,4 @@ for (galName in galList){ # loop through galaxies
 } # END Galaxy loop
 
 }
-}
+
