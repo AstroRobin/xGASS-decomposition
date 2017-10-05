@@ -266,7 +266,7 @@ for (galName in galList){ # loop through galaxies
       ############################################################
       ###### Measure sky statistics with profoundProfound() ######
       ############################################################
-      if(verb){cat("INFO: Creating Segmentation image.\n")}
+      if(verb){cat("INFO: Creating sky mask.\n")}
       
       # Run profund to get sky statistics
       skyMask = profoundProFound(image0, skycut=1.0, tolerance=5, size=11,
@@ -275,6 +275,7 @@ for (galName in galList){ # loop through galaxies
                                     stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
       
       # Extract sky measurements from image using profitSkyEst()
+      if(verb){cat("INFO: Measuring sky statistics.\n")}
       skyEst = profoundSkyEst(image0, objects = skyMask$objects_redo, plot=FALSE)
       skyVal = skyEst$sky
       skyRMS = skyEst$skyRMS
@@ -297,6 +298,7 @@ for (galName in galList){ # loop through galaxies
       }
       
       # Subtract the background sky
+      if(verb){cat("INFO: Subtracting background sky from image.\n")}
       image = image0 - skyVal
       
       
@@ -306,8 +308,8 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Creating Segmentation image.\n")}
       
       # Extract sources
-      segmentation = profoundProFound(image, sigma=2.0, skycut=1.5, tolerance=5,
-                                      magzero=ZERO_POINT, gain=GAIN, header=header,
+      segmentation = profoundProFound(image, sigma=1.5, skycut=1.5, tolerance=3.5, ext=1.0,
+                                      magzero=ZERO_POINT, gain=GAIN, #header=header,
                                       stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
       # Find the main (central) source
@@ -315,9 +317,10 @@ for (galName in galList){ # loop through galaxies
       mainID = find_main(segmentation$segstats,dims) # The main source is the one with the smallest separation from the centre
       
       # Expand Segmentation image
+      if(verb){cat("INFO: Expanding central segment.\n")}
       segmentationExp = profoundMakeSegimExpand(image=image, segim=segmentation$segim, expand=mainID, skycut=0.0, sigma=2,
                                                   sky=0.0,skyRMS=skyMask$skyRMS,
-                                                  magzero=ZERO_POINT, gain=GAIN, header=header,
+                                                  magzero=ZERO_POINT, gain=GAIN, #header=header,
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
       # Dilate Segmentation image
