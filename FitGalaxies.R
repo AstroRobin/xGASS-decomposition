@@ -60,32 +60,6 @@ PIXSCALE = 0.396 # The pixel scale of the image (here: SDSS)
 ######################### DEFINE FUNCTIONS ########################
 ###################################################################
 
-plotSegIm = function(image, segim, mask, sky = 0, ...) # A modified version of the profoundPlotSegim() function to adjust colours and linewidths
-{
-  # <param: image [array (float, 2)]> - The image matrix
-  # <param: segim [array (int, 2)]> - The segmentation map matrix create with profoundProfound()
-  # <param: mask [array (int, 2)]> - The mask matrix.
-  # <param: sky [float]> - The value of the sky.
-  
-  # <return: NULL>
-  
-  image = image - sky
-  temp = magimage(image, ...)
-  if (min(segim, na.rm = TRUE) != 0) {
-    segim = segim - min(segim, na.rm = TRUE)
-  }
-  segvec = which(tabulate(segim) > 0)
-  for (i in segvec) {
-    z = segim == i
-    z = z[ceiling(temp$x), ceiling(temp$y)]
-    contour(temp$x, temp$y, z, add = T, col = rainbow(1000,start=0.49,end=0.51)[sample(1000, 1)], zlim = c(0, 1), lwd=2.5, drawlabels = FALSE, nlevels = 1)
-  }
-  if (!missing(mask)) {
-    magimage(mask, lo = 0, hi = 1, col = c(NA, hsv(alpha = 0.3)), 
-             add = T)
-  }
-}
-
 
 divide_magnitude = function(magTot,frac=0.5) # Function to divide a magnitude by some fraction
 {
@@ -182,9 +156,9 @@ bandList = c('r')
 #       - example: for running an example optimisation
 #       - fullsample: running the full sample of galaxies
 # description: A verbose description of the optimisation run.
-prefix = "Alpha"
-flavour = "fullsample"
-description = "Alpha: First full-sample optimisation run of xGASS galaxies.\n This uses:\n - simple first-pass segmentating routine\n - matrix sky-subtraction\n - MCMC (CHARM) optimisation w/ 1e4 samples\n - initial condition improvement via isophotal fitting/Laplaces Approximation optimisation\n\nThis particular run contains ~120 xGASS galaxies which were previously missed in the SingleMCMC run performed earlier.\n ** Running on raijin.nci.org.au **"
+prefix = "Test"
+flavour = "testing"
+description = "Testing new sky subtraction and segmentation maps." #"Alpha: First full-sample optimisation run of xGASS galaxies.\n This uses:\n - simple first-pass segmentating routine\n - matrix sky-subtraction\n - MCMC (CHARM) optimisation w/ 1e4 samples\n - initial condition improvement via isophotal fitting/Laplaces Approximation optimisation\n\nThis particular run contains ~120 xGASS galaxies which were previously missed in the SingleMCMC run performed earlier.\n ** Running on raijin.nci.org.au **"
 
 ### Specify which galaxies to fit. (Requires image and PSF files.) ###
 args = commandArgs(trailingOnly = TRUE) # Parse arguments (if given)
@@ -295,14 +269,18 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Creating Segmentation image.\n")}
       
       # Run profund to get sky statistics
-      skyMask = profoundProFound(image0, skycut=1.0, tolerance=3, size=7,
+      skyMask = profoundProFound(image0, skycut=1.0, tolerance=5, size=11,
+                                    box = c(dims[1]/10,dims[2]/10), grid = c(dims[1]/25,dims[2]/25),type='bicubic',
                                     magzero=ZERO_POINT, gain=GAIN, header=header, pixscale=PIXSCALE,
                                     stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
       
       # Extract sky measurements from image using profitSkyEst()
-      skyEst = profoundSkyEst(image0, objects = skyMask$objects, plot=FALSE)
+      skyEst = profoundSkyEst(image0, objects = skyMask$objects_redo, plot=FALSE)
       skyVal = skyEst$sky
       skyRMS = skyEst$skyRMS
+      
+      # Get sky statistics from sky map produced in profoundProFound
+      skyStats = capture.output(maghist(skyMask$sky,plot=FALSE))
       
       ### Plot input images ###
       if (output && outputInputs){
@@ -319,7 +297,7 @@ for (galName in galList){ # loop through galaxies
       }
       
       # Subtract the background sky
-      image = image0 - sky
+      image = image0 - skyVal
       
       
       ###########################################################
@@ -328,7 +306,7 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Creating Segmentation image.\n")}
       
       # Extract sources
-      segmentation = profoundProFound(image, sigma=2.0, skycut=1.0, tolerance=2, size=15,
+      segmentation = profoundProFound(image, sigma=2.0, skycut=1.5, tolerance=5,
                                       magzero=ZERO_POINT, gain=GAIN, header=header,
                                       stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
@@ -337,10 +315,16 @@ for (galName in galList){ # loop through galaxies
       mainID = find_main(segmentation$segstats,dims) # The main source is the one with the smallest separation from the centre
       
       # Expand Segmentation image
-      segmentationDilated = profoundMakeSegimDilate(image, segmentation$segim, size=25, expand=mainID,
+      segmentationExp = profoundMakeSegimExpand(image=image, segim=segmentation$segim, expand=mainID, skycut=0.0, sigma=2,
+                                                  sky=0.0,skyRMS=skyMask$skyRMS,
                                                   magzero=ZERO_POINT, gain=GAIN, header=header,
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
+      # Dilate Segmentation image
+      # segmentationDilated = profoundMakeSegimDilate(image, segmentation$segim, size=55, expand=mainID,
+      #                                             magzero=ZERO_POINT, gain=GAIN, header=header,
+      #                                             stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+
       # @Hosein Hashemi:
       #segmentation = profitProFound(image, sigma=4, skycut=2, tolerance=5, size=11, pixcut = 5,
       #                              magzero=ZERO_POINT, gain=GAIN, header=header,
@@ -348,7 +332,7 @@ for (galName in galList){ # loop through galaxies
     
       
       #Create segmentation image from only the central source
-      segMap = segmentationDilated$segim
+      segMap = segmentationExp$segim
       segMap[segMap!=mainID]=0 # only use the central source
       
       # [visualisation] Make a segmentation map image using pixels from 'image'
@@ -372,12 +356,12 @@ for (galName in galList){ # loop through galaxies
       ### Plot input images ###
       if (output && outputInputs){
         inputsFilename = paste(galName,"_",band,"_Inputs.png",sep='')
-        png(paste(outputDir,inputsFilename,sep='/'),width=500,height=500,pointsize=16)
+        png(paste(outputDir,inputsFilename,sep='/'),width=750,height=750,pointsize=16)
         par(mfrow=c(2,2), mar=c(0.4,0.4,1,1))
-        magimage(image,axes=F,bad=0); text(0.2*dim(image)[1],0.925*dim(image)[2],"Image",col='white',cex= 1.75)
-        plotSegIm(image,segim=segMap,axes=F,lwd=3,bad=0); text(0.4*dim(image)[1],0.925*dim(image)[2],"Segmentation",col='white',cex= 1.75) ## Test without foreach ***
-        magimage(sigma,axes=F,bad=0); text(0.2*dim(image)[1],0.925*dim(image)[2],"Sigma",col='white',cex= 1.75)
-        magimage(psf,axes=F,bad=0); text(0.2*dim(psf)[1],0.925*dim(psf)[2],"PSF",col='white',cex= 1.75)
+        magimage(image,axes=F,bad=0); text(0.1*dim(image)[1],0.925*dim(image)[2],"Image",pos=4,col='white',cex= 1.75)
+        profoundSegimPlot(image,segim=segmentationExp$segim,axes=F,lwd=3,bad=0); text(0.1*dim(image)[1],0.925*dim(image)[2],"Segmentation",pos=4,col='white',cex= 1.75) ## Test without foreach ***
+        magimage(sigma,axes=F,bad=0); text(0.1*dim(image)[1],0.925*dim(image)[2],"Sigma",pos=4,col='white',cex= 1.75)
+        magimage(psf,axes=F,bad=0); text(0.1*dim(psf)[1],0.925*dim(psf)[2],"PSF",pos=4,col='white',cex= 1.75)
         dev.off()
       }
       
@@ -386,7 +370,7 @@ for (galName in galList){ # loop through galaxies
       #####  Get Initial Conditions  #####
       ####################################
       if(verb){cat("INFO: Getting initial conditions.\n")}
-      improveInits = TRUE # Whether to try isophotal fitting or quick LaplacesApproximation() to improve initial conditions
+      improveInits = FALSE # Whether to try isophotal fitting or quick LaplacesApproximation() to improve initial conditions
       
       # Rough Initial conditions from segmentation objects
       inits = segmentation$segstats
@@ -760,7 +744,7 @@ for (galName in galList){ # loop through galaxies
         startTime = Sys.time()
         
         Data$algo.func = "LD"
-        LDFit = LaplacesDemon(profitLikeModel, Initial.Values = Data$init, Data=Data, Iterations=1e4, Algorithm='CHARM',Thinning=1,Specs=list(alpha.star=0.44), Status=2500)
+        LDFit = LaplacesDemon(profitLikeModel, Initial.Values = Data$init, Data=Data, Iterations=1e2, Algorithm='CHARM',Thinning=1,Specs=list(alpha.star=0.44), Status=2500)
         
         #bestLD=magtri(LDFit$Posterior2,samples=500,samptype='end')
         if(output && outputCorner){
