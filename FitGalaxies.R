@@ -366,13 +366,13 @@ for (galName in galList){ # loop through galaxies
       }
       
       
-      ####################################
-      #####  Get Initial Conditions  #####
-      ####################################
-      if(verb){cat("INFO: Getting initial conditions.\n")}
-      improveInits = FALSE # Whether to try isophotal fitting or quick LaplacesApproximation() to improve initial conditions
+      #####################################
+      #######  Get Initial Guesses  #######
+      #####################################
+      if(verb){cat("INFO: Getting initial guesses.\n")}
+      improveInits = FALSE # Whether to try isophotal fitting or quick LaplacesApproximation() to improve initial guess
       
-      # Rough Initial conditions from segmentation objects
+      # Rough Initial model from segmentation objects
       inits = segmentation$segstats
       if (nComps == 2){
         magInits = divide_magnitude(inits$mag[mainID],frac=0.4) # Arbitrary 40%/60% division of flux to Bulge/Disk
@@ -384,10 +384,10 @@ for (galName in galList){ # loop through galaxies
         nSerInits = c(4)
       }
         
-      ## Attempt to improve initial conditions via Isophote fitting:
+      ## Attempt to improve initial guesses via Isophote fitting:
       # Only run if running 2 components and the image does not contain NaN padding (i.e. galaxies on frame edges).
       if (improveInits == TRUE && nComps == 2 && padded == FALSE){
-        if(verb){cat("INFO: Attempting to improve initial conditions.\n")}
+        if(verb){cat("INFO: Attempting to improve initial guess.\n")}
         if (output && outputIsophotes){
           isophotesFilename = paste(galName,"_",band,"_Isophotes.png",sep='')
           png(paste(outputDir,isophotesFilename,sep='/'),width=1050,height=500,pointsize=16)
@@ -439,7 +439,7 @@ for (galName in galList){ # loop through galaxies
         }
         
         # Check for divergence
-        isoConverge = TRUE # IF isoConverge=TRUE THEN use these as initial conditions. ELSE run acesApproximation()
+        isoConverge = TRUE # IF isoConverge=TRUE THEN use these as initial guesses. ELSE run acesApproximation()
         convParams = list("mag1"=TRUE,"re1"=TRUE,"nser1"=TRUE,"mag2"=TRUE,"re2"=TRUE,"nser2"=TRUE)
         
         if(verb){cat("INFO: Isophotal 1D fitting results:\n")}
@@ -479,9 +479,9 @@ for (galName in galList){ # loop through galaxies
           }
         }
         
-        # If solution has converged, set the isophotal fit solution as the initial conditions
+        # If solution has converged, set the isophotal fit solution as the initial guesses
         if (isoConverge==TRUE){
-          if(verb){cat("INFO: Replacing initial conditions with isophotal 1D fit solutions.\n")}
+          if(verb){cat("INFO: Replacing initial model with isophotal 1D fit solutions.\n")}
           magInits = c(isoFit[1],isoFit[4])
           reInits = c(10^isoFit[2],10^isoFit[5])
           nSerInits = c(10^isoFit[3],10^isoFit[6])
@@ -692,7 +692,7 @@ for (galName in galList){ # loop through galaxies
       
       # IF the result from 1D isophotal fitting did not converge THEN attempt a aceApproximation() fit:
       if (improveInits==TRUE && isoConverge==FALSE) { # LaplaceApproximation LM fit
-        if(verb){cat("INFO: Attempting to improve inital conditions with LaplaceApproximation()\n")}
+        if(verb){cat("INFO: Attempting to improve inital guess with LaplaceApproximation()\n")}
         Data$algo.func = "LA" # Change optimising algorithm
         LAFit = LaplaceApproximation(profitLikeModel,parm = Data$init, Data = Data, Iterations=1e3,
                                      Method = 'LM', CovEst='Identity', sir = FALSE)
@@ -702,7 +702,7 @@ for (galName in galList){ # loop through galaxies
         
         ### Check for divergence
         if(verb){cat("INFO: Testing LAFit for divergence.\n")}
-        LAConverge = TRUE # IF converged=TRUE THEN use these as initial conditions. ELSE run LaplacesApproximation()
+        LAConverge = TRUE # IF converged=TRUE THEN use these as initial guess. ELSE run LaplacesApproximation()
         for (n in seq(nComps)){
           if (is.element(optimModel$sersic$mag[n],Data$intervals$sersic$mag[[n]])){LAConverge=FALSE}
           if (is.element(optimModel$sersic$re[n],Data$intervals$sersic$re[[n]])){LAConverge=FALSE}
@@ -726,9 +726,9 @@ for (galName in galList){ # loop through galaxies
           }
         }
         
-        # If solution has converged, set the LAFit solution as the initial conditions
+        # If solution has converged, set the LAFit solution as the initial guess
         if (LAConverge==TRUE){
-          if(verb){cat("INFO: Replacing initial conditions with LAFit solutions.\n")}
+          if(verb){cat("INFO: Replacing initial model with LAFit solution.\n")}
           Data$init = LAFit$Summary1[,1]
         } else {
           if(verb){cat("INFO: LAFit solution did not converge.\n")}
@@ -890,7 +890,7 @@ for (galName in galList){ # loop through galaxies
         cat("\n Stats for target object:\n")
         print(segmentation$segstats[mainID,])
         
-        cat("\n\n>> Initial Conditions:\n")
+        cat("\n\n>> Initial Model:\n")
         print(modellist$sersic)
         
         cat("\n\n>> Fitting Parameters:\n")
@@ -905,7 +905,7 @@ for (galName in galList){ # loop through galaxies
         print(intervals$sersic)
         
         if(improveInits==TRUE){
-          cat("\n\n>> Attempted Improvements on Initial Conditions:\n")
+          cat("\n\n>> Attempted Improvements on Initial Guesses:\n")
           if(isoConverge==TRUE){
             cat("Isophotal 1D fitting successful\n")
             cat("Fitting solutions:\n")
