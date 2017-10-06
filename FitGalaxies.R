@@ -316,15 +316,15 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Finding central source.\n")}
       mainID = find_main(segmentation$segstats,dims) # The main source is the one with the smallest separation from the centre
       
-      # Expand Segmentation image
+      # @Robin Cook: Expand Segmentation image
       if(verb){cat("INFO: Expanding central segment.\n")}
       segmentationExp = profoundMakeSegimExpand(image=image, segim=segmentation$segim, expand=mainID, skycut=0.0, sigma=2,
                                                   sky=0.0,skyRMS=skyMask$skyRMS,
                                                   magzero=ZERO_POINT, gain=GAIN, #header=header,
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
-      # Dilate Segmentation image
-      # segmentationDilated = profoundMakeSegimDilate(image, segmentation$segim, size=55, expand=mainID,
+      # @Robin Cook: Dilate Segmentation image
+      #segmentationDil = profoundMakeSegimDilate(image, segmentation$segim, size=55, expand=mainID,
       #                                             magzero=ZERO_POINT, gain=GAIN, header=header,
       #                                             stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
 
@@ -398,7 +398,7 @@ for (galName in galList){ # loop through galaxies
         }
         
         # Get the ellipse isophotes
-        ellipses = profitGetEllipses(image,segim=segmentation$segim,segID=mainID,levels=20,pixscale=PIXSCALE,magzero=ZERO_POINT,dobox=FALSE,plot=output)
+        ellipses = profoundGetEllipses(image,segim=segmentation$segim,segID=mainID,levels=20,pixscale=PIXSCALE,magzero=ZERO_POINT,dobox=FALSE,plot=output)
         rMin = 1; rMax = 30; rDiff = 0.1
         rLocs=seq(rMin,rMax,by=rDiff)
         rCut = (7.5-rMin)/rDiff+1
