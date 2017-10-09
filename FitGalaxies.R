@@ -49,9 +49,9 @@ library(LaplacesDemon) # MCMC optimisation package
 #       > [form]
 #         > [galName]-[form]_[band]_[nComps]comp_{OutputType}  > *outputs*
 
-GALS_DIR = paste(HOME,"/Documents/PhD/GASS/Galaxies",sep = "")
 #GALS_DIR = paste(HOME,"/home/robincook/Google Drive/PhD/Miscellaneous/Lange2016_Galaxies/Galaxies",sep = "")
-#GALS_DIR = "/short/re8/rc4459/Documents/PhD/GASS/Galaxies" # Raijin
+if (HOME != '/home/rcook'){GALS_DIR = paste(HOME,"/Documents/PhD/GASS/Galaxies",sep = "")}
+if (HOME != '/home/571'){GALS_DIR = "/short/re8/rc4459/Documents/PhD/GASS/Galaxies"} # Raijin
 PIXSCALE = 0.396 # The pixel scale of the image (here: SDSS)
 
 ###################################################################
@@ -285,8 +285,8 @@ for (galName in galList){ # loop through galaxies
       
       ### Plot input images ###
       if (output && outputInputs){
-        statsFilename = paste(galName,"_",band,"_SkyStats.png",sep='')
-        png(paste(outputDir,statsFilename,sep='/'),width=900,height=300,pointsize=16)
+        skyStatsFilename = paste(baseFilename,"_SkyStats.png",sep='')
+        png(paste(outputDir,skyStatsFilename,sep='/'),width=900,height=300,pointsize=16)
         par(mfrow=c(1,3), mar=c(4,2,2,1))
         
         magimage(skyMask$sky,stretch = 'asinh'); text(0.1*dims[1],0.925*dims[2],"Sky",adj=0,col='white',cex=1.75)
@@ -344,7 +344,7 @@ for (galName in galList){ # loop through galaxies
       
       # Save to file
       if(output && outputSegStats){
-        segStatsFilename = paste(galName,"_",band,"_SegmentationStats.csv",sep='')
+        segStatsFilename = paste(baseFilename,"_SegmentationStats.csv",sep='')
         write.csv(segmentation$segstats,file=paste(outputDir,segStatsFilename,sep='/'),quote=FALSE,row.names=FALSE)
       }
       
@@ -358,7 +358,7 @@ for (galName in galList){ # loop through galaxies
       
       ### Plot input images ###
       if (output && outputInputs){
-        inputsFilename = paste(galName,"_",band,"_Inputs.png",sep='')
+        inputsFilename = paste(baseFilename,"_Inputs.png",sep='')
         png(paste(outputDir,inputsFilename,sep='/'),width=750,height=750,pointsize=16)
         par(mfrow=c(2,2), mar=c(0.4,0.4,1,1))
         magimage(image,axes=F,bad=0); text(0.1*dim(image)[1],0.925*dim(image)[2],"Image",pos=4,col='white',cex= 1.75)
