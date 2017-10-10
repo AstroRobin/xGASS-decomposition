@@ -15,7 +15,7 @@ GASS12044,2,B,D,Clumpy
 GASS124007,2,B,"C,D",Offset bulge
 GASS124000,3,B,C,
 GASS124010,2,B,"S,C","Large galaxy, Clumpy, Diffuse spiral arms"
-GASS12005,1,G,C,
+GASS12005,2,O,"C,D",Edge On
 GASS124001,3,B,"C,S",Diffuse spiral arms
 GASS12002,2,B,C,
 GASS124025,1,O,D,Clumpy
@@ -76,7 +76,7 @@ GASS101000,1,G,-,
 GASS101012,1,G,-,
 GASS4195,1,O,S,
 GASS4074,2,B,C,Large galaxy
-GASS101016,1,O,B,Bright nearby object
+GASS101016,2,O,"C,B",Bright nearby object
 GASS101019,1,G,-,
 GASS101022,2,B,C,
 GASS101011,3,O,"C,S",
@@ -201,7 +201,7 @@ GASS52045,2,O,"C,S",Interacting
 GASS19918,3,B,"C,S",
 GASS32308,2,B,C,
 GASS108140,1,G,-,Edge on
-GASS108148,1,B,"C,S,D,B","Large galaxy, Diffuse spiral arms, Embedded object"
+GASS108148,2,B,"C,S,D,B","Large galaxy, Diffuse spiral arms, Embedded object"
 GASS108094,3,B,"C,S,D,B","Diffuse spiral arms, Interacting"
 GASS108133,2,B,"C,S",Embedded object
 GASS56486,2,B,C,
@@ -241,7 +241,7 @@ GASS14712,2,B,C,
 GASS19672,2,B,C,Interacting
 GASS25844,1,O,C,
 GASS109057,2,B,C,
-GASS109099,1,O,S,
+GASS109099,2,B,"C,S",Truncated disk
 GASS109116,3,B,C,
 GASS57017,1,O,"C,S",Edge on
 GASS109020,2,B,C,
@@ -289,7 +289,7 @@ GASS109106,3,O,"C,S,D",
 GASS20286,2,O,"C,S,D",Embedded object
 GASS109080,1,O,"C,S",Diffuse spiral arms
 GASS109094,2,O,"C,S",Embedded object
-GASS109079,1,O,D,
+GASS109079,2,B,"C,D",Truncated disk
 GASS109034,1,G,S,
 GASS109135,3,O,"S,D",
 GASS109050,2,O,"C,S,D",Embedded object
@@ -300,11 +300,11 @@ GASS18755,1,O,"S,B,I",Large galaxy
 GASS14863,2,O,"S,B,I",Large galaxy
 GASS5035,2,O,"C,S",Embedded object
 GASS110038,2,O,"C,S",Group
-GASS33777,1,O,"C,S",Embedded object
+GASS33777,2,B,"C,S",Embedded object
 GASS110082,1,B,S,Edge on
 GASS14831,2,B,C,
 GASS18830,1,G,-,
-GASS8634,1,O,-,
+GASS8634,2,B,-,
 GASS18798,1,O,S,Embedded object
 GASS110036,1,O,S,Diffuse spiral arms
 GASS14943,1,O,S,
@@ -341,7 +341,7 @@ GASS26535,3,B,C,
 GASS23069,1,O,C,
 GASS5204,2,B,"C,S,D",Embedded object
 GASS23070,2,B,"C,D",Edge on
-GASS110019,1,G,S,
+GASS110019,2,B,C,
 GASS110057,2,O,"C,D",
 GASS23102,3,O,"C,S",
 GASS54577,1,G,S,Embedded object
@@ -356,7 +356,7 @@ GASS110043,2,B,C,
 GASS110001,2,O,C,Ring
 GASS110055,1,O,C,
 GASS110017,2,B,C,
-GASS26586,1,G,"C,B",Bright nearby object
+GASS26586,1,O,"C,B",
 GASS54763,1,O,"C,S,B,D,I","Large galaxy, Embedded object"
 GASS26569,3,B,C,
 GASS110059,3,O,"C,S",Embedded object
@@ -391,8 +391,8 @@ GASS23419,2,B,C,
 GASS34723,3,O,C,
 GASS23437,1,G,C,
 GASS8953,2,G,C,
-GASS8945,1,G,C,
-GASS23441,2,B,C,
+GASS8945,1,O,C,
+GASS23441,2,B,"C,D",Edge on
 GASS23408,1,G,"C,S",
 GASS110063,1,O,"C,S",Embedded object
 GASS9085,3,B,"C,S",Diffuse spiral arms
@@ -480,7 +480,7 @@ GASS111029,2,B,C,Canonical
 GASS48994,2,B,C,Large galaxy
 GASS111047,1,G,-,Clumpy
 GASS12597,2,O,"C,D",Edge on
-GASS111036,1,G,C,Group
+GASS111036,1,O,C,Group
 GASS111024,2,B,"C,S,B",Bright nearby object
 GASS111090,?,O,"C,S,D",Interacting
 GASS111002,2,B,"C,S,D",Edge on
@@ -491,7 +491,7 @@ GASS111070,2,B,"C,S,D,I","Large galaxy, Diffuse spiral arms"
 GASS23815,1,G,"C,S",Embedded object
 GASS18084,2,B,C,Canonical
 GASS18004,1,O,"C,S,B",Group
-GASS111054,1,G,"C,B",Bright nearby object
+GASS111054,2,O,"C,B","Bright nearby object, Diffuse spiral arms"
 GASS111075,2,B,"C,S","Large galaxy, Diffuse spiral arms"
 GASS111088,1,G,C,
 GASS111091,3,O,"C,S,B,I","Large galaxy, Diffuse spiral arms"
@@ -508,10 +508,10 @@ GASS49386,3,B,"C,D",Edge on
 GASS111028,2,B,C,
 GASS112065,2,B,C,
 GASS112090,2,B,"C,S,I",Large galaxy
-GASS18138,1,G,"C,D",Edge on
+GASS18138,2,O,"C,D",Edge on
 GASS18185,1,G,S,
 GASS112072,2,B,"C,S",
-GASS112106,1,O,"C,S,B",Bright nearby object
+GASS112106,1,O,"C,S,B,D","Bright nearby object, Edge on"
 GASS112014,2,O,C,
 GASS49727,1,O,"C,S,D",Embedded object
 GASS18131,1,O,C,
@@ -561,11 +561,11 @@ GASS30479,2,O,C,
 GASS28143,3,O,"C,S",Diffuse spiral arms
 GASS112038,2,B,"C,D",Offset bulge
 GASS30471,2,B,"C,S",Large galaxy
-GASS112051,1,G,"C,B",Bright nearby object
+GASS112051,3,O,C,
 GASS112109,2,B,"C,S,I",Large galaxy
 GASS24366,2,B,"C,S",Embedded source
 GASS24436,2,B,"C,S",Embedded source
-GASS24437,1,O,"C,D",Edge on
+GASS24437,2,B,"C,D","Edge on, Clumpy"
 GASS12983,2,B,"C,B",Bright nearby object
 GASS28168,1,O,"C,S",Diffuse spiral arms
 GASS112053,2,B,"C,S,I","Large galaxy, Diffuse spiral arms, Embedded object"
@@ -574,7 +574,7 @@ GASS112080,3,B,"C,S",Embedded source
 GASS28482,2,B,"C,S",
 GASS6506,2,B,C,
 GASS13037,1,G,"C,S",Group
-GASS112081,1,O,"C,S,B,D,I","Large galaxy, Bright nearby object, Edge on"
+GASS112081,2,B,"C,S,B,D,I","Large galaxy, Bright nearby object, Edge on"
 GASS112054,1,G,"C,B",Bright nearby object
 GASS28462,3,G,"C,B",Bright nearby object
 GASS28461,1,G,"C,S,B,I",Large galaxy
@@ -589,11 +589,11 @@ GASS112016,2,O,"C,S",
 GASS50856,2,O,"C,D",Edge on
 GASS112116,1,B,"C,D",Clumpy
 GASS50866,3,O,"C,S",Embedded object
-GASS40495,1,G,"C,S",Group
+GASS40495,2,B,"C,S",Group
 GASS35497,3,B,"C,D",Large galaxy
 GASS28551,2,B,"C,D",Edge on
 GASS40494,2,B,"C,S",
-GASS112004,1,O,C,
+GASS112004,2,O,C,
 GASS40502,1,O,"C,S",Embedded object
 GASS112003,3,B,"C,S","Canonical, Embedded object"
 GASS112002,1,G,S,
@@ -676,7 +676,7 @@ GASS35659,2,O,"C,S",
 GASS44021,2,B,C,
 GASS43929,2,B,"C,D",Edge on
 GASS51190,3,B,"C,S",Embedded object
-GASS13551,1,G,"C,S",
+GASS13551,2,O,"C,S",
 GASS13549,2,O,"C,S",
 GASS113005,2,O,"C,S",
 GASS7031,2,O,"C,D",Edge on
@@ -710,7 +710,7 @@ GASS40260,2,O,"C,S",
 GASS113123,1,G,S,Embedded object
 GASS40257,1,O,"C,S,B","Bright nearby object, Embedded object"
 GASS113122,1,O,"C,S,D","Clumpy, Embedded object"
-GASS113011,1,G,"C,S",
+GASS113011,2,O,"C,S,D",Edge on
 GASS40245,2,O,"C,S,B,I","Large galaxy, Diffuse spiral arms"
 GASS40247,2,O,"C,S",Embedded object
 GASS38409,2,B,"C,S,I","Large galaxy, Diffuse spiral arms"
@@ -718,7 +718,7 @@ GASS114141,3,B,"C,S,D","Large galaxy, Diffuse spiral arms, Clumpy"
 GASS114137,1,O,D,Clumpy
 GASS114001,2,B,"C,S",Embedded object
 GASS114098,2,B,"C,B",Bright nearby object
-GASS9301,1,G,C,
+GASS9301,2,B,C,
 GASS114072,3,O,"C,D",Clumpy
 GASS114126,3,B,"C,I",Large galaxy
 GASS9317,2,B,"C,S",Bright nearby object
@@ -771,12 +771,12 @@ GASS114041,3,B,"C,D","Bright nearby object, Clumpy"
 GASS114083,2,B,C,Bright nearby object
 GASS114125,2,B,C,
 GASS9463,1,O,"C,S,B,D","Interacting, Group"
-GASS114025,1,G,C,
+GASS114025,1,O,C,
 GASS114096,2,B,C,
-GASS114077,1,O,"C,S,B","Bright nearby object, Canonical"
+GASS114077,2,O,"C,S,B","Bright nearby object, Canonical"
 GASS114117,1,O,"C,S","Diffuse spiral arms, Embedded object"
 GASS114056,2,O,"C,S",
-GASS114076,1,O,C,
+GASS114076,2,O,"C,D",Edge on
 GASS7457,1,G,"C,S",
 GASS114038,2,B,C,
 GASS7493,2,B,C,
@@ -784,7 +784,7 @@ GASS114065,3,O,"C,S",
 GASS114067,2,B,"C,S",Large galaxy
 GASS114136,3,B,"C,S,D",Clumpy
 GASS9551,2,B,"C,S",Embedded object
-GASS114012,1,G,"C,S",Clumpy
+GASS114012,2,O,"C,S,D","Clumpy, Edge on"
 GASS45940,1,G,S,Embedded object
 GASS114036,3,B,"C,S",Diffuse spiral arms
 GASS28703,2,B,C,
@@ -805,8 +805,8 @@ GASS9615,1,G,-,
 GASS7509,2,B,"C,S",
 GASS28875,2,B,C,
 GASS9607,2,B,C,
-GASS9604,1,O,C,
-GASS38198,1,O,C,
+GASS9604,2,O,"C,S",
+GASS38198,2,O,C,
 GASS41482,2,B,"C,D",Edge on
 GASS7520,2,B,C,
 GASS9814,2,B,C,Diffuse spiral arms
@@ -844,7 +844,7 @@ GASS38716,1,G,"C,S",Embedded object
 GASS38718,2,O,C,
 GASS10032,2,B,"C,S",Embedded object
 GASS38729,1,O,"C,S,D",Ring
-GASS38703,1,G,-,
+GASS38703,1,G,S,
 GASS38732,2,O,C,
 GASS38728,2,O,C,
 GASS10031,2,B,C,
@@ -968,7 +968,7 @@ GASS11055,2,B,C,Ring
 GASS122006,2,O,"C,S,D","Interacting, Clumpy"
 GASS122004,1,G,"C,S",
 GASS11086,2,B,"C,D",Edge on
-GASS11087,1,O,"C,D",Edge on
+GASS11087,2,O,"C,S,D",Edge on
 GASS11080,?,B,D,"Clumpy, Interacting"
 GASS11071,2,B,C,
 GASS11126,2,O,C,
@@ -1022,7 +1022,7 @@ GASS11386,1,O,C,
 GASS11366,2,O,C,
 GASS11357,2,B,C,
 GASS123001,2,O,"C,S,I","Large galaxy, Diffuse spiral arms"
-GASS11676,1,G,"C,D",Edge on
+GASS11676,2,O,"C,D",Edge on
 GASS11669,3,B,C,Embedded object
 GASS11582,3,O,"C,S",Embedded object
 GASS11685,2,B,"C,S",Diffuse spiral arms
@@ -1036,7 +1036,7 @@ GASS123005,3,B,"C,S,B,I","Large galaxy, Embedded object, Bright nearby object"
 GASS11727,2,O,C,
 GASS123007,3,B,C,
 GASS11763,2,B,C,
-GASS123008,1,G,"C,S",Embedded object
+GASS123008,1,O,"C,S",Embedded object
 GASS11754,2,O,C,
 GASS11791,1,G,"C,S,B",Bright nearby object
 GASS11783,2,B,C,
