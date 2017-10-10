@@ -1,0 +1,126 @@
+###############################################################################
+###############################################################################
+####   ___           __ _                    _   _            ___ _ _      ####
+####  / __|___ _ _  / _(_)__ _ _  _ _ _ __ _| |_(_)___ _ _   | __(_) |___  ####
+#### | (__/ _ \ ' \|  _| / _` | || | '_/ _` |  _| / _ \ ' \  | _|| | / -_) ####
+####  \___\___/_||_|_| |_\__, |\_,_|_| \__,_|\__|_\___/_||_| |_| |_|_\___| ####
+####                     |___/                                             ####
+###############################################################################
+###############################################################################
+
+### You are looking at a configuration file for fitting xGASS galaxies in R ###
+
+############################# Input Parameters ################################
+
+galsDir = "/home/rcook/Documents/PhD/GASS/Galaxies"   # Base galaxy directory
+# Directory Structure:
+# > galsDir
+#   > [galName]
+#     > [band]
+#       > [galName]_[band].fits          \
+#       > [galName]_[band]_PSF.fits      / *inputs*
+#     > Fitting
+#       > [run]
+#         > [galName]-[run]_[band]_[nComps]comp_{OutputType}  > *outputs*
+
+galFile = "GalaxyList.csv"  # The file containing a list of galaxy IDs:
+                            ## Can be a comma-separated single list or
+                            ## multiple lists separated by individual lines
+                            ## (use lineNum below to specify which line)
+
+lineNum = 0                 # Line number
+                            ## origin=1; use lineNum = 0 to use all lines
+
+libPath = ""                # A .libpath if referencing to another R library
+
+
+############################# Image Properties ################################
+
+dataSource = "SDSS"         # The source of the imaging data
+pixScale = 0.396            # The pixel scale [arcseconds]
+
+
+############################ Fitting Parameters ###############################
+
+mode = "LD"             # Fitting function
+                        ## "optim": BFGS [not supported]
+                        ## "LA": LaplacesApproximation [not supported]
+                        ## "CMA": Covariance Matrix Adaptation [not supported]
+                        ## "LD": Full-MCMC (Default)
+
+MCMCiters = 1e4         # Number of iterations for updating parameters (MCMC)
+MCMCAlgo = "CHARM"      # MCMC algorithm (MCMC)
+MCMCStatus=MCMCiters/5  # How often to print status
+
+likeFunction = 't'      # The likelihood distribution function
+                        ## "chisq": Chi-Squared
+                        ## "norm": Normal
+                        ## "pois": Poisson
+                        ## "t": Student-T (Default)
+
+bandList = c('r')       # SDSS filters to be used: [u|g|r|i|z]
+
+improveInits = TRUE     # Attempt to improve initial guesses via isophotal
+                        ## fitting and LaplacesApproximation prior to running
+                        ## MCMC optimisation.
+
+
+######################## Segmentation Paramaters ##############################
+
+### Initial Image Segmentation ###
+segSigma = 1.5      # Standard deviation of the blur used
+segSkyCut = 1.5     # Lowest threshold to make on the image [skyRMS]
+segExt = 1.0        # Radius for the detection of neighbouring object [pixels]
+segTol = 3.5        # Minimum height between highest point and the point where 
+                    ## it contacts another object [skyRMS]
+
+### Target Segment Expansion ###
+expSkyCut = 0.0     # Lowest threshold to make on the image [skyRMS]
+expSigma = 2.0      # Standard deviation of the blur used
+
+############################# Model Fitting ###################################
+
+compList = c(2)             # Number of components to be fit
+                            ## 1: One component; Free Sersic
+                            ## 2: Two components; Bulge+Disk (Sersic)
+                            ## 3: Three components; Bulge+Bar+Disk (Sersic)
+
+
+fitBoxiness = FALSE         # Fit for boxiness?
+fixedDisk = FALSE           # Fix the disk at exponential disk (n=1)?
+fixedCentres = TRUE         # Fix the centres of all components
+sphericalBulge = TRUE       # Fit bulge with "ang = FALSE" & "axrat = 1"?
+
+
+
+
+################################ Metadata #####################################
+
+run = "Default"           # The name of this optimisation run
+
+flavour = "example"       # Purpose/category of the optimisation run
+                          ##  testing: for testing new features
+                          ##  example: for running an example optimisation
+                          ##  fullsample: running the full sample of galaxies
+
+description="Optimising galaxies."    # A description of the optimisation run.
+
+
+################################# Outputs #####################################
+
+verb = TRUE               # The verbosity of the propgram [TRUE | FALSE]
+output = TRUE             # All outputs
+
+outputInputs = TRUE       # Inputs: image, segmentation, sigma map, PSF
+outputIsophotes = TRUE    # If isophotes are fit; displays the 1D results
+outputSegStats = TRUE     # Table of segmentation objects and their parameters
+outputSkyStats = TRUE     # Plot of the Sky noise statistics
+outputInitial = TRUE      # Likelihood + Ellipse
+outputOptimised = TRUE    # Likelihood + Ellipse
+outputCorner = TRUE       # MCMC posteriors
+outputModel = TRUE        # Initial+optimised model images
+outputResults = TRUE      # A single line result of initial/optimised values
+outputSummary = TRUE      # Verbose summary of the entire fit.
+outputMCMCResults = TRUE  # Output results from MCMC (values + statistics)
+outputMCMCSummary = TRUE  # Summary of the MCMC fit.
+outputWorkspace = TRUE    # R workspace (can be quite a large file)
