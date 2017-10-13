@@ -12,54 +12,59 @@
 ### TO-DO: 
 # Test SkyMap measurement
 # Soft-code
+#   - Change to config file instead
 
-# Get home directory
-# "HOME" specifies the machine being used:
-# if (HOME == "/home/robincook"): HP-Laptop
-# if (HOME == "/home/rcook"): ICRAR ~ Munro Cluster Computer
-# if (HOME == "/Users/robincook"): Macbook
-HOME = paste("/",unlist(strsplit(getwd(), '/'))[2],"/",unlist(strsplit(getwd(), '/'))[3],sep="")
+cat(paste("",
+"         _________   __________             ____                                             _ __  _           \n",
+"   _  __/ ____/   | / ___/ ___/            / __ \\___  _________  ____ ___  ____  ____  _____(_) /_(_)___  ____ \n",
+"  | |/_/ / __/ /| | \\__ \\\\__ \\   ______   / / / / _ \\/ ___/ __ \\/ __ `__ \\/ __ \\/ __ \\/ ___/ / __/ / __ \\/ __ \\\n",
+" _>  </ /_/ / ___ |___/ /__/ /  /_____/  / /_/ /  __/ /__/ /_/ / / / / / / /_/ / /_/ (__  ) / /_/ / /_/ / / / /\n",
+"/_/|_|\\____/_/  |_/____/____/           /_____/\\___/\\___/\\____/_/ /_/ /_/ .___/\\____/____/_/\\__/_/\\____/_/ /_/ \n",
+"                                                                       /_/                                     \n",sep=""))
 
-# If running on Munro (ICRAR): must specify library path:
-if (HOME == "/home/rcook") {.libPaths(c("/home/arobotham/R/x86_64-pc-linux-gnu-library/3.2",.libPaths()))}
+###################################################################
+######################## LOAD CONFIG FILES ########################
+###################################################################
 
-library(ProFit) # Bayesian galaxy fitting tool
+configFound = FALSE
+args = commandArgs(trailingOnly = TRUE) # Parse arguments (if given)
+if ("default.conf" %in% list.files(path=".")){ # Check for default config file "config.R"
+  configFile = "default.conf"
+  configFound = TRUE
+} else if (len(args) != 0) { # get .conf file from command line arguments
+  if (file.exists(args[1])){ # check if config file exists
+    configFile = args[1]
+    configFound = TRUE
+  } else {
+    cat(paste("Error: config file '",args[1],"' does not exist",sep=""))
+  }
+} else { # Look for a '.conf' file in current directory
+  for (file in list.files(path=".")){
+    if (grepl(".conf",file)){
+      configFile = file
+      configFound = TRUE
+    }
+  }
+}
+
+if (configFound==TRUE){source(configFile)} # If a .conf file is found, load the configuration values
+if (libPath != "") {.libPaths(c(libPath,.libPaths()))}
+
+###################################################################
+########################## LOAD PACKAGES ##########################
+###################################################################
+
+library(ProFit,warn.conflicts=FALSE) # Bayesian galaxy fitting tool
 library(ProFound) # Source Extraction and Image Segmentation tool
-library(EBImage) # Image processing package
+library(EBImage,warn.conflicts=FALSE) # Image processing package
 library(magicaxis) # "Magically Pretty Plots" ~ ASGR
 library(FITSio) # .FITS file input/output
-library(LaplacesDemon) # MCMC optimisation package
-#if (HOME != '/home/rcook'){
-#  library(rgl) # 3D real-time rendering system for R
-#  library(rpanel) # Set of cuntions to build simple GUI controls for R functions
-#}
+library(LaplacesDemon,warn.conflicts=FALSE) # MCMC optimisation package
 
-###################################################################
-######################### DEFINE CONSTANTS ########################
-###################################################################
-
-### The base directory for the galaxy data
-# Directory Structure:
-# > GALS_DIR
-#   > [galName]
-#     > [band]
-#       > [galName]_[band].fits          \
-#       > [galName]_[band]_PSF.fits      / *inputs*
-#     > Fitting
-#       > [form]
-#         > [galName]-[form]_[band]_[nComps]comp_{OutputType}  > *outputs*
-
-#GALS_DIR = paste(HOME,"/home/robincook/Google Drive/PhD/Miscellaneous/Lange2016_Galaxies/Galaxies",sep = "")
-if (HOME != '/home/rcook'){GALS_DIR = paste(HOME,"/Documents/PhD/GASS/Galaxies",sep = "")}
-if (HOME != '/home/571'){GALS_DIR = "/short/re8/rc4459/Documents/PhD/GASS/Galaxies"} # Raijin
-PIXSCALE = 0.396 # The pixel scale of the image (here: SDSS)
-
-###################################################################
 
 ###################################################################
 ######################### DEFINE FUNCTIONS ########################
 ###################################################################
-
 
 divide_magnitude = function(magTot,frac=0.5) # Function to divide a magnitude by some fraction
 {
@@ -131,84 +136,6 @@ add_pseudo_bulge = function(model) # Add a zero-point magnitude bulge to the mod
   return(pseudo)
 }
 
-###################################################################
-
-
-###################################################################
-################### DEFINE FITTING PARAMETERS #####################
-###################################################################
-
-### Fitting Mode ("optim":BFGS [not supported], "LA":LaplacesApproximation [not supported], "LD":Full-MCMC) ###
-mode="LD"
-
-### Specify the number of components to be fit ###
-#compList = c(1,2)
-compList = c(2)
-
-### Specify frequency band(s) ###
-#bandList = c('u','g','r','i','z')
-bandList = c('r')
-
-### Specifying the Optimisation run metedata: ###
-# prefix: This specifies the 'form' of this particular optimisation run and will be used in the filenames of output files (e.g. Test, NoInits, Alpha, etc.)
-# flavour: The purpose of this optimisation run:
-#       - testing: for testing new features
-#       - example: for running an example optimisation
-#       - fullsample: running the full sample of galaxies
-# description: A verbose description of the optimisation run.
-prefix = "Test"
-flavour = "testing"
-description = "Testing new sky subtraction and segmentation maps." #"Alpha: First full-sample optimisation run of xGASS galaxies.\n This uses:\n - simple first-pass segmentating routine\n - matrix sky-subtraction\n - MCMC (CHARM) optimisation w/ 1e4 samples\n - initial condition improvement via isophotal fitting/Laplaces Approximation optimisation\n\nThis particular run contains ~120 xGASS galaxies which were previously missed in the SingleMCMC run performed earlier.\n ** Running on raijin.nci.org.au **"
-
-### Specify which galaxies to fit. (Requires image and PSF files.) ###
-args = commandArgs(trailingOnly = TRUE) # Parse arguments (if given)
-if (length(args) == 0) { # galaxy list not given in command-line args
-  galList = c("GASS110042")
-  lineNum = NULL
-} else { # galaxy list was given in command-line args
-  galFile = args[1] # The path to the file containing the comma-separated line(s) for the input galaxy list(s).
-  lines = readLines(galFile)
-  
-  # Check for line number reference; i.e. if the file has many lists.
-  if (length(args) > 1){
-    lineNum = as.integer(args[2])
-    if (lineNum > length(lines)){
-      cat("\nWARNING: Line number reference is greater than the number of lines. Setting line number to 1.\n")
-      lineNum = 1
-    }
-  } else {
-    lineNum = seq(1,length(lines))
-  }
-  
-  if (length(lineNum) > 1){
-    galList = c()
-    for (n in lineNum) {galList = c(galList, strsplit(lines[n],'[,]')[[1]])}
-  } else {
-    galList = strsplit(lines[lineNum],'[,]')[[1]] # Get the list of galaxies
-  }
-  
-}
-
-### Specify whether to output images or not ###
-output = TRUE
-
-outputInputs = TRUE # Inputs: image, segmentation, sigma map, PSF
-outputIsophotes = TRUE # If isophotes are fit; displays the isophotes and 1D fit
-outputSegStats = TRUE # Table of segmentation objects with their parameters
-outputSkyStats = TRUE # Plot of the Sky noise statistics
-outputInitial = TRUE # Likelihood + Ellipse
-outputOptimised = TRUE # Likelihood + Ellipse
-outputCorner = TRUE # MCMC posteriors
-outputModel = TRUE # Initial+optimised model images
-outputResults = TRUE # A single line result of the initial/optimised values
-outputSummary = TRUE # Summary of the entire fit
-outputMCMCResults = TRUE # Output results from MCMC; includes values + statistics.
-outputMCMCSummary = TRUE # Summary of the MCMC fit.
-outputWorkspace = TRUE # R workspace; only turn off if trying to conserve space.
-
-# Specify verbosity
-verb = TRUE
-
 ##################################################################
 
 ###################################################################
@@ -222,14 +149,14 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
       
       ### INPUTS ### otherwise looped
-      # galName = "GASS9695"
+      # galName = "GASS3305"
       # band = "r"
       # nComps = 2
 
       ### Get image file ###
       if(verb){cat("INFO: Retrieving data.\n")}
       imgFilename = paste(galName,"_",band,".fits",sep="")
-      imgFile = paste(GALS_DIR,galName,band,imgFilename,sep='/')
+      imgFile = paste(galsDir,galName,band,imgFilename,sep='/')
       image0 = readFITS(imgFile)$imDat # image0 is the non sky-subtracted image
       header = readFITS(imgFile)$hdr
       dims = dim(image0)
@@ -238,17 +165,17 @@ for (galName in galList){ # loop through galaxies
       
       ### Get PSF file ###
       psfFilename = paste(galName,"_",band,"_PSF.fits",sep="")
-      psfFile = paste(GALS_DIR,galName,band,psfFilename,sep='/')
+      psfFile = paste(galsDir,galName,band,psfFilename,sep='/')
       psf = readFITS(psfFile)$imDat
       
       ### Create outputs folder ###
       if(verb){cat("INFO: Creating output directories.\n")}
-      dir.create(paste(GALS_DIR,galName,"Fitting",sep='/'), showWarnings = FALSE) # Suppress warning if directory already exists.
+      dir.create(paste(galsDir,galName,"Fitting",sep='/'), showWarnings = FALSE) # Suppress warning if directory already exists.
       # Check Prefix validity:
-      if (prefix == '' || is.null(prefix)){print("WARNING: Setting prefix to 'Default'"); prefix = 'Default'}
-      outputDir = paste(GALS_DIR,galName,"Fitting",prefix,sep='/')
+      if (run == '' || is.null(run)){print("WARNING: Setting run name to 'Default'"); run = 'Default'}
+      outputDir = paste(galsDir,galName,"Fitting",run,sep='/')
       dir.create(outputDir, showWarnings = FALSE)  # Suppress warning if directory already exists.
-      baseFilename = paste(galName,"-",prefix,"_",band,"_",nComps,"comp",sep="")
+      baseFilename = paste(galName,"-",run,"_",band,"_",nComps,"comp",sep="")
       
       
       ### Get information from FITS header ###
@@ -271,7 +198,7 @@ for (galName in galList){ # loop through galaxies
       # Run profund to get sky statistics
       skyMask = profoundProFound(image0, skycut=1.0, tolerance=5, size=11,
                                     box = c(dims[1]/10,dims[2]/10), grid = c(dims[1]/25,dims[2]/25),type='bicubic',
-                                    magzero=ZERO_POINT, gain=GAIN, header=header, pixscale=PIXSCALE,
+                                    magzero=ZERO_POINT, gain=GAIN, header=header, pixscale=pixScale,
                                     stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
       
       # Extract sky measurements from image using profitSkyEst()
@@ -398,7 +325,7 @@ for (galName in galList){ # loop through galaxies
         }
         
         # Get the ellipse isophotes
-        ellipses = profoundGetEllipses(image,segim=segmentation$segim,segID=mainID,levels=20,pixscale=PIXSCALE,magzero=ZERO_POINT,dobox=FALSE,plot=output)
+        ellipses = profoundGetEllipses(image,segim=segmentation$segim,segID=mainID,levels=20,pixscale=pixScale,magzero=ZERO_POINT,dobox=FALSE,plot=output)
         rMin = 1; rMax = 30; rDiff = 0.1
         rLocs=seq(rMin,rMax,by=rDiff)
         rCut = (7.5-rMin)/rDiff+1
@@ -407,7 +334,7 @@ for (galName in galList){ # loop through galaxies
         disk=profitRadialSersic(rLocs, mag=magInits[2], re=reInits[2], nser=nSerInits[2])
         
         # Define minimisation function
-        sumsq1D=function(par=c(magInits[1], log10(reInits[1]), log10(nSerInits[1]), magInits[2], log10(reInits[2]), log10(nSerInits[2])),rad, SB, pixscale=PIXSCALE)
+        sumsq1D=function(par=c(magInits[1], log10(reInits[1]), log10(nSerInits[1]), magInits[2], log10(reInits[2]), log10(nSerInits[2])),rad, SB, pixscale=pixScale)
         {
           bulge=profitRadialSersic(rad, mag=par[1], re=10^par[2], nser=10^par[3])
           disk=profitRadialSersic(rad, mag=par[4], re=10^par[5], nser=10^par[6])
@@ -425,7 +352,7 @@ for (galName in galList){ # loop through galaxies
         # Run L-BFGS-B optimisation:
         if(verb){cat("INFO: Running BFGS 1D isophotal optimisation.\n")}
         isoFit=optim(sumsq1D, par=c(magInits[1], log10(reInits[1]), log10(nSerInits[1]), magInits[2], log10(reInits[2]), log10(nSerInits[2])),
-                    rad=ellipses$ellipses$radhi[4:19], SB=ellipses$ellipses$SB[4:19], pixscale=PIXSCALE,
+                    rad=ellipses$ellipses$radhi[4:19], SB=ellipses$ellipses$SB[4:19], pixscale=pixScale,
                     method='L-BFGS-B', lower=lower, upper=upper)$par
         
         bulge=profitRadialSersic(rLocs, mag=isoFit[1], re=10^isoFit[2], nser=10^isoFit[3])
@@ -435,9 +362,9 @@ for (galName in galList){ # loop through galaxies
           magplot(ellipses$ellipses$radhi[4:19], ellipses$ellipses$SB[4:19],ylim=c(25,17), grid=TRUE, type='l',lwd=2.5,
                 xlab='Radius (pixels)', ylab='Surface Brightness (mag/arcsec^2)',main="Bulge+Disk Surface Brightness Profile")
           points(ellipses$ellipses$radhi[4:19],ellipses$ellipses$SB[4:19],pch=16)
-          lines(rLocs, profitFlux2SB(bulge, pixscale=PIXSCALE), col='red',lty='dashed',lwd=2)
-          lines(rLocs, profitFlux2SB(disk, pixscale=PIXSCALE), col='blue',lty='dashed',lwd=2)
-          lines(rLocs, profitFlux2SB(bulge+disk, pixscale=PIXSCALE), col='green',lwd=2)
+          lines(rLocs, profitFlux2SB(bulge, pixscale=pixScale), col='red',lty='dashed',lwd=2)
+          lines(rLocs, profitFlux2SB(disk, pixscale=pixScale), col='blue',lty='dashed',lwd=2)
+          lines(rLocs, profitFlux2SB(bulge+disk, pixscale=pixScale), col='green',lwd=2)
           dev.off()
         }
         
@@ -477,7 +404,7 @@ for (galName in galList){ # loop through galaxies
         for (ii in seq(rCut,(rMax-rMin)/rDiff+1,1)){
           if (bulge[ii] > disk[ii]){
              isoConverge = FALSE
-             if(verb){cat(paste("WARNING: Bulge dominates beyond r > ",toString(rCut*PIXSCALE),"\" (r = ",toString((ii*rDiff+rCut)*PIXSCALE),"\").\n",sep=''))}
+             if(verb){cat(paste("WARNING: Bulge dominates beyond r > ",toString(rCut*pixScale),"\" (r = ",toString((ii*rDiff+rCut)*pixScale),"\").\n",sep=''))}
              break
           }
         }
@@ -626,9 +553,6 @@ for (galName in galList){ # loop through galaxies
         
         # Define the sigmas object
         sigmaArr = c(2,2,5,1,1,30,0.3,Inf)
-        priors=function(new,init,sigmas=sigmaArr){
-          return(sum(2*dnorm(log10(new$sersic$re),log10(init$sersic$re),sigmas[4],log=TRUE)))
-        }
         
         sigmas = list(
           sersic = list(
@@ -664,15 +588,15 @@ for (galName in galList){ # loop through galaxies
       
       ### Setup Data ###
       if(verb){cat("INFO: Setting up Data object.\n")}
-      Data = profitSetupData(image=image,sigma=sigma,modellist=modellist,tofit=tofit,tolog=tolog,priors=priors,intervals=intervals,
+      Data = profitSetupData(image=image,sigma=sigma,modellist=modellist,tofit=tofit,tolog=tolog,intervals=intervals,priors=priors,
                              psf=psf, magzero=ZERO_POINT,segim=segMap, algo.func='optim',like.func="t",verbose=FALSE)
       
       
       ### Plot Input Model Likelihood ###
       if (output  && outputInitial){
         initLikelihoodFilename = paste(baseFilename,"_LikelihoodInitial.png",sep='')
-        png(paste(outputDir,initLikelihoodFilename,sep='/'),width=1600,height=490,pointsize=28)
-        profitLikeModel(parm=Data$init,Data=Data,makeplots=TRUE,plotchisq=FALSE)
+        png(paste(outputDir,initLikelihoodFilename,sep='/'),width=1600,height=1000,pointsize=28)
+        profitLikeModel(parm=Data$init,Data=Data,makeplots=TRUE,plotchisq=TRUE)
         dev.off()
       }
       
@@ -681,9 +605,9 @@ for (galName in galList){ # loop through galaxies
         initEllipseFilename = paste(baseFilename,"_EllipseInitial.png",sep='')
         png(paste(outputDir,initEllipseFilename,sep='/'),width=1000,height=750,pointsize=20)
         if (nComps == 1){
-          try(profitEllipsePlot(Data=Data,modellist=add_pseudo_bulge(modellist),pixscale=PIXSCALE,SBlim=25))
+          try(profitEllipsePlot(Data=Data,modellist=add_pseudo_bulge(modellist),pixscale=pixScale,SBlim=25))
         } else if (nComps == 2){
-          try(profitEllipsePlot(Data=Data,modellist=modellist,pixscale=PIXSCALE,SBlim=25))
+          try(profitEllipsePlot(Data=Data,modellist=modellist,pixscale=pixScale,SBlim=25))
         }
         dev.off()
       }
@@ -723,7 +647,7 @@ for (galName in galList){ # loop through galaxies
           for (ii in seq(rCut,(rMax-rMin)/rDiff+1,1)){
             if (bulge[ii] > disk[ii]){
               LAConverge = FALSE
-              if(verb){cat(paste("WARNING: Bulge dominates beyond r > ",toString(rCut*PIXSCALE),"\" (r = ",toString((ii*rDiff+rCut)*PIXSCALE),"\").\n",sep=''))}
+              if(verb){cat(paste("WARNING: Bulge dominates beyond r > ",toString(rCut*pixScale),"\" (r = ",toString((ii*rDiff+rCut)*pixScale),"\").\n",sep=''))}
               #break
             }
           }
@@ -747,7 +671,7 @@ for (galName in galList){ # loop through galaxies
         startTime = Sys.time()
         
         Data$algo.func = "LD"
-        LDFit = LaplacesDemon(profitLikeModel, Initial.Values = Data$init, Data=Data, Iterations=1e2, Algorithm='CHARM',Thinning=1,Specs=list(alpha.star=0.44), Status=2500)
+        LDFit = LaplacesDemon(profitLikeModel, Initial.Values = Data$init, Data=Data, Iterations=1e4, Algorithm='CHARM',Thinning=1,Specs=list(alpha.star=0.44), Status=2500)
         
         #bestLD=magtri(LDFit$Posterior2,samples=500,samptype='end')
         if(output && outputCorner){
@@ -780,8 +704,8 @@ for (galName in galList){ # loop through galaxies
         ### Plot Optimised Model Likelihood ###
         if(output  && outputOptimised){
           optimLikelihoodFilename = paste(baseFilename,"_LikelihoodOptimised.png",sep='')
-          png(paste(outputDir,optimLikelihoodFilename,sep='/'),width=1600,height=490,pointsize=28)
-          profitLikeModel(bestLD[,1],Data,makeplots=TRUE,plotchisq=FALSE)
+          png(paste(outputDir,optimLikelihoodFilename,sep='/'),width=1600,height=1000,pointsize=28)
+          profitLikeModel(bestLD[,1],Data,makeplots=TRUE,plotchisq=TRUE)
           dev.off()
         }
         
@@ -832,9 +756,9 @@ for (galName in galList){ # loop through galaxies
         optimEllipseFilename = paste(baseFilename,"_EllipseOptimised.png",sep='')
         png(paste(outputDir,optimEllipseFilename,sep='/'),width=1000,height=750,pointsize=20)
         if (nComps == 1){
-          try(profitEllipsePlot(Data=Data,add_pseudo_bulge(optimModel),pixscale=PIXSCALE,SBlim=25))
+          try(profitEllipsePlot(Data=Data,add_pseudo_bulge(optimModel),pixscale=pixScale,SBlim=25))
         }else if (nComps == 2){
-          try(profitEllipsePlot(Data=Data,optimModel,pixscale=PIXSCALE,SBlim=25))
+          try(profitEllipsePlot(Data=Data,optimModel,pixscale=pixScale,SBlim=25))
         }
         dev.off()
       }
@@ -862,7 +786,7 @@ for (galName in galList){ # loop through galaxies
         cat(paste("Galaxy: ",galName,"\n",sep=""))
         cat(paste("Band: ",band,"\n",sep=""))
         cat(paste("Num. Components: ",nComps,"\n\n",sep=""))
-        cat(paste("Form: ",prefix,"\n",sep=""))
+        cat(paste("Run: ",run,"\n",sep=""))
         cat(paste("Flavour: ",flavour,"\n",sep=""))
         cat(paste("\nDescription:   ","\n",description,"\n",sep=""))
         cat(paste("\nDate: ",Sys.time(),"\n",sep=""))
@@ -877,7 +801,7 @@ for (galName in galList){ # loop through galaxies
         cat("\n\n>> Inputs:\n")
         cat(paste("Base directory: ",outputDir,"\n",sep=""))
         cat(paste("Image: ",imgFile,"\n",sep=""))
-        cat(paste(" Dimensions: ",dims[1]," x ",dims[2]," (",dims[1]*PIXSCALE/60.0,"' x ",dims[1]*PIXSCALE/60.0,"')","\n",sep=""))
+        cat(paste(" Dimensions: ",dims[1]," x ",dims[2]," (",dims[1]*pixScale/60.0,"' x ",dims[1]*pixScale/60.0,"')","\n",sep=""))
         cat(paste(" Padding: ",padded,"\n",sep=""))
         cat(paste("PSF: ",psfFile,"\n",sep=""))
         cat(paste("\nZero point: ",ZERO_POINT,"\n",sep=""))
