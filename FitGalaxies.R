@@ -13,13 +13,14 @@
 # Test SkyMap measurement
 # Soft-code
 #   - Change to config file instead
+#   - read galList
 
 cat(paste("",
 "         _________   __________             ____                                             _ __  _           \n",
 "   _  __/ ____/   | / ___/ ___/            / __ \\___  _________  ____ ___  ____  ____  _____(_) /_(_)___  ____ \n",
 "  | |/_/ / __/ /| | \\__ \\\\__ \\   ______   / / / / _ \\/ ___/ __ \\/ __ `__ \\/ __ \\/ __ \\/ ___/ / __/ / __ \\/ __ \\\n",
 " _>  </ /_/ / ___ |___/ /__/ /  /_____/  / /_/ /  __/ /__/ /_/ / / / / / / /_/ / /_/ (__  ) / /_/ / /_/ / / / /\n",
-"/_/|_|\\____/_/  |_/____/____/           /_____/\\___/\\___/\\____/_/ /_/ /_/ .___/\\____/____/_/\\__/_/\\____/_/ /_/ \n",
+"/_/|_|\\____/_/  |_/____/____/           /_____/\\___/\\___/\\____/_/ /_/ /_/ ____/\\____/____/_/\\__/_/\\____/_/ /_/ \n",
 "                                                                       /_/                                     \n",sep=""))
 
 ###################################################################
@@ -148,7 +149,7 @@ for (galName in galList){ # loop through galaxies
     for (nComps in compList){ # loop through number of components.
       if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
       
-      ### INPUTS ### otherwise looped
+      ### INPUTS ### *otherwise taken from .conf file
       # galName = "GASS3305"
       # band = "r"
       # nComps = 2
@@ -159,9 +160,9 @@ for (galName in galList){ # loop through galaxies
       imgFile = paste(galsDir,galName,band,imgFilename,sep='/')
       image0 = readFITS(imgFile)$imDat # image0 is the non sky-subtracted image
       header = readFITS(imgFile)$hdr
-      dims = dim(image0)
-      # Check for NaN padding in images where the frame is present.
-      padded = is.element(NaN,image0)
+      
+      dims = dim(image0) # image dimensions
+      padded = is.element(NaN,image0) # Check for NaN padding in images where the frame is present.
       
       ### Get PSF file ###
       psfFilename = paste(galName,"_",band,"_PSF.fits",sep="")
@@ -188,7 +189,6 @@ for (galName in galList){ # loop through galaxies
       ### Subtract SOFT_BIAS from image and PSF ###
       image0 = image0 - SOFT_BIAS
       psf = psf - SOFT_BIAS
-      
       
       ############################################################
       ###### Measure sky statistics with profoundProfound() ######
@@ -234,7 +234,7 @@ for (galName in galList){ # loop through galaxies
       ###########################################################
       if(verb){cat("INFO: Creating Segmentation image.\n")}
       
-      # Extract sources
+      # @Robin Cook: Extract sources
       segmentation = profoundProFound(image, sigma=1.5, skycut=1.5, tolerance=3.5, ext=1.0,
                                       magzero=ZERO_POINT, gain=GAIN, #header=header,
                                       stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
@@ -245,15 +245,15 @@ for (galName in galList){ # loop through galaxies
       
       # @Robin Cook: Expand Segmentation image
       if(verb){cat("INFO: Expanding central segment.\n")}
-      segmentationExp = profoundMakeSegimExpand(image=image, segim=segmentation$segim, expand=mainID, skycut=0.0, sigma=2,
+      segmentationExp0 = profoundMakeSegimExpand(image=image, segim=segmentation$segim, expand=mainID, skycut=0.0, sigma=2,
                                                   sky=0.0,skyRMS=skyMask$skyRMS,
                                                   magzero=ZERO_POINT, gain=GAIN, #header=header,
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
       # @Robin Cook: Dilate Segmentation image
-      #segmentationDil = profoundMakeSegimDilate(image, segmentation$segim, size=55, expand=mainID,
-      #                                             magzero=ZERO_POINT, gain=GAIN, header=header,
-      #                                             stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+      segmentationExp = profoundMakeSegimDilate(image=image, segim=segmentationExp0$segim, expand=mainID, size=15,
+                                                  magzero=ZERO_POINT, gain=GAIN, header=header,
+                                                  stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
 
       # @Hosein Hashemi:
       #segmentation = profitProFound(image, sigma=4, skycut=2, tolerance=5, size=11, pixcut = 5,
@@ -279,11 +279,15 @@ for (galName in galList){ # loop through galaxies
       ##########################################
       #####   Make Sigma map with ProFit   #####
       ##########################################
+      # > sky level is defined as 0.0 as sky has already been subtracted.
+      # > sigma map reflects the original image, however, sky pixels are set to a fixed uncertainty and object pixels have additional shot noise.
       if(verb){cat("INFO: Making sigma map.\n")}
-      sigma = profoundMakeSigma(image,sky=0.0,skyRMS=skyRMS,gain=GAIN) # sky level is defined as 0.0 as sky has already been subtracted.
+      sigma = profoundMakeSigma(image,sky=0.0,objects=segmentationExp$objects,sky=segmentationExp,skyRMS=skyRMS,gain=GAIN,plot=FALSE)
       
       
-      ### Plot input images ###
+      ###############################
+      #####   Plot Input Data   #####
+      ###############################
       if (output && outputInputs){
         inputsFilename = paste(baseFilename,"_Inputs.png",sep='')
         png(paste(outputDir,inputsFilename,sep='/'),width=750,height=750,pointsize=16)
@@ -300,7 +304,6 @@ for (galName in galList){ # loop through galaxies
       #######  Get Initial Guesses  #######
       #####################################
       if(verb){cat("INFO: Getting initial guesses.\n")}
-      improveInits = FALSE # Whether to try isophotal fitting or quick LaplacesApproximation() to improve initial guess
       
       # Rough Initial model from segmentation objects
       inits = segmentation$segstats
@@ -424,9 +427,9 @@ for (galName in galList){ # loop through galaxies
       } # END iosphotal 1D fitting optimisation
       
       
-      ##################################
-      #####  DEFINE PROFIT INPUTS  #####
-      ##################################
+      ####################################
+      #####   DEFINE PROFIT INPUTS   #####
+      ####################################
       if(verb){cat("INFO: Defining ProFit inputs.\n")}
       if (nComps == 1){
         ## SINGLE SERSIC PROFILE ##
@@ -708,6 +711,8 @@ for (galName in galList){ # loop through galaxies
           profitLikeModel(bestLD[,1],Data,makeplots=TRUE,plotchisq=TRUE)
           dev.off()
         }
+        
+        
         
         endTime = Sys.time()
         elapsedTime =  difftime(endTime,startTime,units="secs")
