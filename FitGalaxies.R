@@ -235,7 +235,7 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Creating Segmentation image.\n")}
       
       # @Robin Cook: Extract sources
-      segmentation = profoundProFound(image, sigma=1.5, skycut=1.5, tolerance=3.5, ext=1.0,
+      segmentation = profoundProFound(image, sigma=segSigma, skycut=segSkyCut, tolerance=segTol, ext=segExt,
                                       magzero=ZERO_POINT, gain=GAIN, #header=header,
                                       stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
@@ -245,16 +245,18 @@ for (galName in galList){ # loop through galaxies
       
       # @Robin Cook: Expand Segmentation image
       if(verb){cat("INFO: Expanding central segment.\n")}
-      segmentationExp0 = profoundMakeSegimExpand(image=image, segim=segmentation$segim, expand=mainID, skycut=0.0, sigma=2,
+      segmentationExp0 = profoundMakeSegimExpand(image=image, segim=segmentation$segim, expand=mainID, skycut=expSkyCut, sigma=expSigma,
                                                   sky=0.0,skyRMS=skyMask$skyRMS,
                                                   magzero=ZERO_POINT, gain=GAIN, #header=header,
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
       # @Robin Cook: Dilate Segmentation image
-      segmentationExp = profoundMakeSegimDilate(image=image, segim=segmentationExp0$segim, expand=mainID, size=15,
-                                                  magzero=ZERO_POINT, gain=GAIN, header=header,
+      if (dilateSize != 0){ # if dilation > 0, perform dilation.
+        segmentationExp = profoundMakeSegimDilate(image=image, segim=segmentationExp0$segim, expand=mainID, size=dilateSize,
+                                                  magzero=ZERO_POINT, gain=GAIN, #header=header,
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
-
+      }
+      
       # @Hosein Hashemi:
       #segmentation = profitProFound(image, sigma=4, skycut=2, tolerance=5, size=11, pixcut = 5,
       #                              magzero=ZERO_POINT, gain=GAIN, header=header,
