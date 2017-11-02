@@ -456,7 +456,7 @@ for (galName in galList){ # loop through galaxies
             nser= TRUE, #  nser(disk) _=_ free.
             ang=  TRUE, 
             axrat=TRUE, 
-            box=  FALSE # do not fit for boxiness
+            box=  fitBoxiness
           )
         )
         
@@ -476,11 +476,8 @@ for (galName in galList){ # loop through galaxies
         
         # Define the sigma values for priors object
         sigmaArr = c(2,2,5,1,1,30,0.3,Inf)
-        priors=function(new,init,sigmas=sigmaArr){
-          return(sum(dnorm(log10(new$sersic$re),log10(init$sersic$re),sigmas[4],log=TRUE)))
-        }
         
-        sigmas = list(
+        stdevs = list(
           sersic = list(
             xcen= c(sigmaArr[1]),
             ycen= c(sigmaArr[2]),
@@ -493,7 +490,7 @@ for (galName in galList){ # loop through galaxies
           )
         )
         
-        priors = profitMakePriors(modellist=modellist, sigmas=sigmas, tolog=tolog, tofit=tofit, allowflat = TRUE) # allowflat allows for flat priors (e.g. boxiness) where the log-likelihood will be computed as 0, rather than -Inf.
+        priors = profitMakePriors(modellist=modellist, sigmas=stdevs, tolog=tolog, tofit=tofit, allowflat = TRUE) # allowflat allows for flat priors (e.g. boxiness) where the log-likelihood will be computed as 0, rather than -Inf.
         
         # The hard intervals should also be specified in linear space.
         intervals=list(
@@ -502,7 +499,7 @@ for (galName in galList){ # loop through galaxies
             ycen=list(lim=c(inits$ycen[mainID]-10,inits$ycen[mainID]+10)),
             mag=list(lim=c(7,ZERO_POINT)),
             re=list(lim=c(0.25,100)),
-            nser=list(lim=c(0.25,10)),
+            nser=list(lim=c(0.25,20)),
             ang=list(lim=c(-180,360)),
             axrat=list(lim=c(0.05,1)),
             box=list(lim=c(-0.5,0.5))
@@ -528,28 +525,28 @@ for (galName in galList){ # loop through galaxies
         # Parameters to fit
         tofit=list(
           sersic=list(
-            xcen= c(TRUE,NA), # fit both sersics for xcen together *** BOUND
-            ycen= c(TRUE,NA), # fit both sersics for xcen together *** BOUND
-            mag=  c(TRUE,TRUE), # fit for both magnitudes
-            re=   c(TRUE,TRUE), # fit for both effective radii
-            nser= c(TRUE,TRUE), # fit for bulge, nser(disk) _=_ free.
-            ang=  c(FALSE,TRUE), # fit for disk only
-            axrat=c(FALSE,TRUE), # *********** fit for disk, bulge has axrat _=_ 1
-            box=  c(FALSE,FALSE)  #
+            xcen= if (fixedCentres) c(TRUE,NA) else c(TRUE,TRUE),
+            ycen= if (fixedCentres) c(TRUE,NA) else c(TRUE,TRUE),
+            mag=  rep(TRUE,2), 
+            re=   rep(TRUE,2),
+            nser= c(TRUE,freeDisk),
+            ang=  c(!sphericalBulge,TRUE),
+            axrat=c(!sphericalBulge,TRUE),
+            box = rep(fitBoxiness,2)
           )
         )
         
         # Define the parameters which should be fitted in log space
         tolog=list(
           sersic=list(
-            xcen= c(FALSE,FALSE),
-            ycen= c(FALSE,FALSE),
-            mag=  c(FALSE,FALSE),
-            re=   c(TRUE,TRUE), # re is best fit in log space
-            nser= c(TRUE,TRUE), # nser is best fit in log space
-            ang=  c(FALSE,FALSE), 
-            axrat=c(TRUE,TRUE), # axrat is best fit in log space
-            box=  c(FALSE,FALSE)
+            xcen= rep(FALSE,2),
+            ycen= rep(FALSE,2),
+            mag=  rep(FALSE,2),
+            re=   rep(TRUE,2), # re is best fit in log space
+            nser= rep(TRUE,2), # nser is best fit in log space
+            ang=  rep(FALSE,2), 
+            axrat=rep(TRUE,2), # axrat is best fit in log space
+            box=  rep(FALSE,2)
           )
         )
         
@@ -557,7 +554,7 @@ for (galName in galList){ # loop through galaxies
         # Define the sigmas object
         sigmaArr = c(2,2,5,1,1,30,0.3,Inf)
         
-        sigmas = list(
+        stdevs = list(
           sersic = list(
             xcen= c(sigmaArr[1],sigmaArr[1]),
             ycen= c(sigmaArr[2],sigmaArr[2]),
@@ -570,7 +567,7 @@ for (galName in galList){ # loop through galaxies
           )
         )
         
-        priors = profitMakePriors(modellist, sigmas, tolog, allowflat = TRUE) # allowflat allows for flat priors (e.g. boxiness) where the log-likelihood will be computed as 0, rather than -Inf.
+        priors = profitMakePriors(modellist=modellist, sigmas=stdevs, tolog=tolog, tofit=tofit, allowflat = TRUE) # allowflat allows for flat priors (e.g. boxiness) where the log-likelihood will be computed as 0, rather than -Inf.
         
         # The hard intervals should also be specified in linear space.
         intervals=list(
@@ -624,8 +621,7 @@ for (galName in galList){ # loop through galaxies
       if (improveInits==TRUE && isoConverge==FALSE) { # LaplaceApproximation LM fit
         if(verb){cat("INFO: Attempting to improve inital guess with LaplaceApproximation()\n")}
         Data$algo.func = "LA" # Change optimising algorithm
-        LAFit = LaplaceApproximation(profitLikeModel,parm = Data$init, Data = Data, Iterations=1e3,
-                                     Method = 'LM', CovEst='Identity', sir = FALSE)
+        LAFit = LaplaceApproximation(profitLikeModel,parm = Data$init, Data = Data, Iterations=1e3, Method = 'LM', CovEst='Identity', sir = FALSE)
         
         # Remake model
         optimModel=profitRemakeModellist(LAFit$Summary1[,1],Data$modellist,Data$tofit,Data$tolog)$modellist
@@ -666,9 +662,8 @@ for (galName in galList){ # loop through galaxies
         
       }  # END LAFit optimisation
       
-      if(verb){cat(paste("\n\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n\n",sep=""))}
-      
       ### Laplaces Demon (Full MCMC)
+      if(verb){cat(paste("\n\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n\n",sep=""))}
       if (mode == "LD"){
         if(verb){cat("INFO: Starting LaplacesDemon() ~ Full MCMC optimisation.\n")}
         startTime = Sys.time()
@@ -676,7 +671,7 @@ for (galName in galList){ # loop through galaxies
         Data$algo.func = "LD"
         LDFit = LaplacesDemon(profitLikeModel, Initial.Values = Data$init, Data=Data, Iterations=1e4, Algorithm='CHARM',Thinning=1,Specs=list(alpha.star=0.44), Status=2500)
         
-        #bestLD=magtri(LDFit$Posterior2,samples=500,samptype='end')
+        ### Plot posterior distributions
         if(output && outputCorner){
           # Determine the index of the first parameter for plotting
           if (nComps == 1){
@@ -695,25 +690,15 @@ for (galName in galList){ # loop through galaxies
             magtri(LDFit$Posterior1[,par0:NCOL(LDFit$Posterior1)],samples=1000,samptype='end',grid=TRUE,tick=FALSE),
             file = '/dev/null' # Redirect output to /dev/null
           )
-          
           dev.off()
         }
         
         bestLD=magtri(LDFit$Posterior1,samples=1000,samptype='end')
         dev.off()
         
-        optimModel = profitRemakeModellist(bestLD[,1],Data$modellist,Data$tofit,Data$tolog)$modellist
-        
-        ### Plot Optimised Model Likelihood ###
-        if(output  && outputOptimised){
-          optimLikelihoodFilename = paste(baseFilename,"_LikelihoodOptimised.png",sep='')
-          png(paste(outputDir,optimLikelihoodFilename,sep='/'),width=1600,height=1000,pointsize=28)
-          profitLikeModel(bestLD[,1],Data,makeplots=TRUE,plotchisq=TRUE)
-          dev.off()
-        }
-        
-        
-        
+        optimFit = bestLD[,1] # the optimised fitting parameters
+        optimModel = profitRemakeModellist(optimFit,Data$modellist,Data$tofit,Data$tolog)$modellist # a complete model list including optimised paramters
+    
         endTime = Sys.time()
         elapsedTime =  difftime(endTime,startTime,units="secs")
         
@@ -739,7 +724,7 @@ for (galName in galList){ # loop through galaxies
       
       ### Plot Model Images ###
       if(output && outputModel){
-        noise = matrix( rnorm(dims[1]*dims[2],mean=0.0,sd=skyRMS), dims[1], dims[2]) 
+        noise = matrix( rnorm(dims[1]*dims[2],mean=0.0,sd=skyEst$skyRMS), dims[1], dims[2]) 
         initModelFilename = paste(baseFilename,"_ModelImage.png",sep='')
         png(paste(outputDir,initModelFilename,sep='/'),width=1200,height=400,pointsize = 20)
         par(mfrow=c(1,3), mar=c(0.4,0.4,1,1))
@@ -755,9 +740,17 @@ for (galName in galList){ # loop through galaxies
         dev.off()
       }
       
+      ### Plot Optimisation results ###
+      if(output  && outputOptimised){
+        
+        ### Plot Optimised Model Likelihood:
+        optimLikelihoodFilename = paste(baseFilename,"_LikelihoodOptimised.png",sep='')
+        png(paste(outputDir,optimLikelihoodFilename,sep='/'),width=1600,height=1000,pointsize=28)
+        profitLikeModel(optimFit,Data,makeplots=TRUE,plotchisq=TRUE)
+        dev.off()
       
-      ### Plot Optimised Ellipse Plot ###
-      if(output && outputOptimised){
+      
+        ### Plot Optimised Ellipse Plot:
         optimEllipseFilename = paste(baseFilename,"_EllipseOptimised.png",sep='')
         png(paste(outputDir,optimEllipseFilename,sep='/'),width=1000,height=750,pointsize=20)
         if (nComps == 1){
@@ -766,6 +759,7 @@ for (galName in galList){ # loop through galaxies
           try(profitEllipsePlot(Data=Data,optimModel,pixscale=pixScale,SBlim=25))
         }
         dev.off()
+      
       }
       
       ###########################
