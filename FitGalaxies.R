@@ -125,7 +125,6 @@ write_output = function(file,name,nComps,init,optim){ # Write optimisation resul
   }
 }
 
-
 add_pseudo_bulge = function(model) # Add a zero-point magnitude bulge to the model
 {
   # <param: model [list]> - The modellist from profitMakeModel()
@@ -137,7 +136,91 @@ add_pseudo_bulge = function(model) # Add a zero-point magnitude bulge to the mod
   return(pseudo)
 }
 
+get_gal_list = function(galFile, lineNum) # Given the path to a file, extract the galaxy list at a particular line(s)
+{
+  # <param: galFile [string]> - The path to the file containing the galaxy list(s)
+  # <param: lineNum [int]> - The line number at which to extract the list(s) (lineNum = 0 for all lines)
+  
+  # <return: galList [list]> - A list containing the galaxies to be optimised
+  
+  # Check whether galFile exists
+  if (!file.exists(galFile)){
+    cat(paste("ERROR: The input galFile: '",galFile,"' does not exist!\n -- ABORTING --\n",sep=""))
+    quit(status=1)
+  }
+  
+  # Read the galaxy lists (one list per line)
+  lines = readLines(galFile)
+  
+  # Validate line number reference
+  if (max(lineNum) > length(lines)){
+    cat("\nWARNING: Line number is greater than the number of lines. Setting lineNum = 1 instead.\n")
+    lineNum = c(1)
+  } else if (lineNume == 0){
+    lineNum = seq(1,length(lines))
+  }
+  
+  # Extract list(s)
+  if (length(lineNum) > 1){ # multiple lines specified
+    galList = c()
+    for (n in lineNum) {galList = c(galList, strsplit(lines[n],'[,]')[[1]])} # concatenate multiple lines into a single list
+  } else { # single line specified
+    galList = strsplit(lines[lineNum],'[,]')[[1]] # Get the list of galaxies at single line
+  }
+  
+  return(galList)
+}
+
 ##################################################################
+
+
+###################################################################
+#####################  RETRIEVE GALAXY LIST  ######################
+###################################################################
+
+### Specifying which galaxies to fit. (Requires image and PSF files.) ###
+if (galFile == "") { # galaxy file not given in .conf file; using galList instead.
+  if (length(galNames) == 0){
+    cat("WARNING: No 'galFile' or 'galList' specified.\n  -- ABORTING --\n")
+    quit(status=1)
+  }
+  
+  galList = galNames
+  lineNum = NULL
+} else { # galaxy list was given in .conf file
+  galList = get_gal_list(galFile, lineNum) # extract galaxy lists from file
+}
+
+# Validate whether all galaxies in galList have both image and PSF files
+noImg = c(); noPSF = c()
+for (galName in galList){
+  # The path to the image file
+  imgFilename = paste(galName,"_",band,".fits",sep="")
+  imgPath = paste(galsDir,galName,band,imgFilename,sep='/')
+  
+  # The path to the PSF file
+  psfFilename = paste(galName,"_",band,"_PSF.fits",sep="")
+  psfPath = paste(galsDir,galName,band,psfFilename,sep='/')
+  
+  if (!file.exists(imgPath)) {noImg = c(noImg, galName)}
+  if (!file.exists(psfPath)) {noPSF = c(noPSF, galName)}
+  
+}
+
+# Remove galaxies without image files
+if (length(noImg) > 0){
+  cat("WARNING: Galaxies without image files:\n")
+  for (galName in noImg){cat(paste(" - ",galName,"\n",sep=""))}
+  galList = setdiff(galList, noImg)
+}
+
+# Remove galaxies without PSF files
+if (length(noPSF) > 0){
+  cat("WARNING: Galaxies without PSF files:\n")
+  for (galName in noPSF){cat(paste(" - ",galName,"\n",sep=""))}
+  galList = setdiff(galList, noPSF)
+}
+
 
 ###################################################################
 ########################## OPTIMISATION ###########################
