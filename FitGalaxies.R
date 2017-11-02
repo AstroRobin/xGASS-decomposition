@@ -591,7 +591,7 @@ for (galName in galList){ # loop through galaxies
       ### Setup Data ###
       if(verb){cat("INFO: Setting up Data object.\n")}
       Data = profitSetupData(image=image,sigma=sigma,modellist=modellist,tofit=tofit,tolog=tolog,intervals=intervals,priors=priors,
-                             psf=psf, magzero=ZERO_POINT,segim=segMap, algo.func='optim',like.func="t",verbose=FALSE)
+                             psf=psf, magzero=ZERO_POINT,segim=segMap, algo.func=fitMode,like.func=likeFunction,verbose=FALSE)
       
       
       ### Plot Input Model Likelihood ###
@@ -666,12 +666,12 @@ for (galName in galList){ # loop through galaxies
       
       ### Laplaces Demon (Full MCMC)
       if(verb){cat(paste("\n\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n\n",sep=""))}
-      if (mode == "LD"){
+      if (fitMode == "LD"){
         if(verb){cat("INFO: Starting LaplacesDemon() ~ Full MCMC optimisation.\n")}
         startTime = Sys.time()
         
-        Data$algo.func = "LD"
-        LDFit = LaplacesDemon(profitLikeModel, Initial.Values = Data$init, Data=Data, Iterations=1e4, Algorithm='CHARM',Thinning=1,Specs=list(alpha.star=0.44), Status=2500)
+        Data$algo.func = fitMode
+        LDFit = LaplacesDemon(profitLikeModel, Initial.Values=Data$init, Data=Data, Iterations=MCMCIters, Algorithm=MCMCAlgo,Thinning=1,Specs=list(alpha.star=0.44), Status=MCMCStatus)
         
         ### Plot posterior distributions
         if(output && outputCorner){
@@ -823,11 +823,6 @@ for (galName in galList){ # loop through galaxies
         
         cat("\n\n>> Fitting Parameters:\n")
         print(tofit$sersic)
-        
-        #if ((mode == "LA" || mode == "LD") && nComps == 2){
-        #  cat("\n\n>> Constraints:\n")
-        #  print(constraints)
-        #}
         
         cat("\n\n>> Intervals:\n")
         print(intervals$sersic)
