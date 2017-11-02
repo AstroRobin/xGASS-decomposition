@@ -133,7 +133,7 @@ add_pseudo_bulge = function(model) # Add a zero-point magnitude bulge to the mod
   
   pseudo = model # copy model list
   for (key in names(model$sersic)){pseudo$sersic[[key]][2] = model$sersic[[key]][1]} # duplicate a second component
-  pseudo$sersic$mag[1] = ZERO_POINT # set magnitude of bulge (loc=1) to ZERO_POINT
+  pseudo$sersic$mag[1] = zeroPoint # set magnitude of bulge (loc=1) to zeroPoint
   return(pseudo)
 }
 
@@ -182,13 +182,15 @@ for (galName in galList){ # loop through galaxies
       ### Get information from FITS header ###
       # Referencing keywords in header
       # <VALUE> = as.numeric(header[which(header=="<KEYWORD>")+1])
-      SOFT_BIAS = as.numeric(header[which(header=="SOFTBIAS")+1])
-      ZERO_POINT = as.numeric(header[which(header=="ZP")+1])
-      GAIN = as.numeric(header[which(header=="GAIN")+1])
+      if (dataSource == "SDSS") {softBias = as.numeric(header[which(header=="SOFTBIAS")+1])}
+      zeroPoint = as.numeric(header[which(header=="ZP")+1])
+      gain = as.numeric(header[which(header=="GAIN")+1])
       
-      ### Subtract SOFT_BIAS from image and PSF ###
-      image0 = image0 - SOFT_BIAS
-      psf = psf - SOFT_BIAS
+      ### Subtract softBias from image and PSF ###
+      if (dataSource == "SDSS"){
+        image0 = image0 - softBias
+        psf = psf - softBias
+      }
       
       ############################################################
       ###### Measure sky statistics with profoundProfound() ######
@@ -198,7 +200,7 @@ for (galName in galList){ # loop through galaxies
       # Run profund to get sky statistics
       skyMask = profoundProFound(image0, skycut=1.0, tolerance=5, size=11,
                                     box = c(dims[1]/10,dims[2]/10), grid = c(dims[1]/25,dims[2]/25),type='bicubic',
-                                    magzero=ZERO_POINT, gain=GAIN, header=header, pixscale=pixScale,
+                                    magzero=zeroPoint, gain=gain, header=header, pixscale=pixScale,
                                     stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
       
       # Extract sky measurements from image using profitSkyEst()
@@ -236,7 +238,7 @@ for (galName in galList){ # loop through galaxies
       
       # @Robin Cook: Extract sources
       segmentation = profoundProFound(image, sigma=segSigma, skycut=segSkyCut, tolerance=segTol, ext=segExt,
-                                      magzero=ZERO_POINT, gain=GAIN, #header=header,
+                                      magzero=zeroPoint, gain=gain, #header=header,
                                       stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
       # Find the main (central) source
@@ -247,19 +249,19 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Expanding central segment.\n")}
       segmentationExp0 = profoundMakeSegimExpand(image=image, segim=segmentation$segim, expand=mainID, skycut=expSkyCut, sigma=expSigma,
                                                   sky=0.0,skyRMS=skyMask$skyRMS,
-                                                  magzero=ZERO_POINT, gain=GAIN, #header=header,
+                                                  magzero=zeroPoint, gain=gain, #header=header,
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
       # @Robin Cook: Dilate Segmentation image
       if (dilateSize != 0){ # if dilation > 0, perform dilation.
         segmentationExp = profoundMakeSegimDilate(image=image, segim=segmentationExp0$segim, expand=mainID, size=dilateSize,
-                                                  magzero=ZERO_POINT, gain=GAIN, #header=header,
+                                                  magzero=zeroPoint, gain=gain, #header=header,
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       }
       
       # @Hosein Hashemi:
       #segmentation = profitProFound(image, sigma=4, skycut=2, tolerance=5, size=11, pixcut = 5,
-      #                              magzero=ZERO_POINT, gain=GAIN, header=header,
+      #                              magzero=zeroPoint, gain=gain, header=header,
       #                              stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
     
       
@@ -284,7 +286,7 @@ for (galName in galList){ # loop through galaxies
       # > sky level is defined as 0.0 as sky has already been subtracted.
       # > sigma map reflects the original image, however, sky pixels are set to a fixed uncertainty and object pixels have additional shot noise.
       if(verb){cat("INFO: Making sigma map.\n")}
-      sigma = profoundMakeSigma(image,sky=0.0,objects=segmentationExp$objects,sky=segmentationExp,skyRMS=skyRMS,gain=GAIN,plot=FALSE)
+      sigma = profoundMakeSigma(image,sky=0.0,objects=segmentationExp$objects,sky=segmentationExp,skyRMS=skyRMS,gain=gain,plot=FALSE)
       
       
       ###############################
@@ -330,7 +332,7 @@ for (galName in galList){ # loop through galaxies
         }
         
         # Get the ellipse isophotes
-        ellipses = profoundGetEllipses(image,segim=segmentation$segim,segID=mainID,levels=20,pixscale=pixScale,magzero=ZERO_POINT,dobox=FALSE,plot=output)
+        ellipses = profoundGetEllipses(image,segim=segmentation$segim,segID=mainID,levels=20,pixscale=pixScale,magzero=zeroPoint,dobox=FALSE,plot=output)
         rMin = 1; rMax = 30; rDiff = 0.1
         rLocs=seq(rMin,rMax,by=rDiff)
         rCut = (7.5-rMin)/rDiff+1
@@ -499,7 +501,7 @@ for (galName in galList){ # loop through galaxies
           sersic=list(
             xcen=list(lim=c(inits$xcen[mainID]-10,inits$xcen[mainID]+10)),
             ycen=list(lim=c(inits$ycen[mainID]-10,inits$ycen[mainID]+10)),
-            mag=list(lim=c(7,ZERO_POINT)),
+            mag=list(lim=c(7,zeroPoint)),
             re=list(lim=c(0.25,100)),
             nser=list(lim=c(0.25,20)),
             ang=list(lim=c(-180,360)),
@@ -591,7 +593,7 @@ for (galName in galList){ # loop through galaxies
       ### Setup Data ###
       if(verb){cat("INFO: Setting up Data object.\n")}
       Data = profitSetupData(image=image,sigma=sigma,modellist=modellist,tofit=tofit,tolog=tolog,intervals=intervals,priors=priors,
-                             psf=psf, magzero=ZERO_POINT,segim=segMap, algo.func=fitMode,like.func=likeFunction,verbose=FALSE)
+                             psf=psf, magzero=zeroPoint,segim=segMap, algo.func=fitMode,like.func=likeFunction,verbose=FALSE)
       
       
       ### Plot Input Model Likelihood ###
@@ -721,8 +723,8 @@ for (galName in galList){ # loop through galaxies
       
       
       ### Remake intial/optimised model ###
-      initImage = profitMakeModel(modellist,dim=dim(image),magzero=ZERO_POINT)$z
-      optimImage = profitMakeModel(optimModel,dim=dim(image),magzero=ZERO_POINT)$z
+      initImage = profitMakeModel(modellist,dim=dim(image),magzero=zeroPoint)$z
+      optimImage = profitMakeModel(optimModel,dim=dim(image),magzero=zeroPoint)$z
       
       ### Plot Model Images ###
       if(output && outputModel){
@@ -805,9 +807,9 @@ for (galName in galList){ # loop through galaxies
         cat(paste(" Dimensions: ",dims[1]," x ",dims[2]," (",dims[1]*pixScale/60.0,"' x ",dims[1]*pixScale/60.0,"')","\n",sep=""))
         cat(paste(" Padding: ",padded,"\n",sep=""))
         cat(paste("PSF: ",psfFile,"\n",sep=""))
-        cat(paste("\nZero point: ",ZERO_POINT,"\n",sep=""))
-        cat(paste("Gain: ",GAIN,"\n",sep=""))
-        cat(paste("Soft-bias: ",SOFT_BIAS,"\n",sep=""))
+        cat(paste("\nZero point: ",zeroPoint,"\n",sep=""))
+        cat(paste("gain: ",gain,"\n",sep=""))
+        cat(paste("Soft-bias: ",softBias,"\n",sep=""))
         
         cat("\n\n>> Sky Statistics:\n")
         cat(gsub("\\[1\\]","\n",skyStats)) # Print the sky statistics: the output from maghist() of profoundMakeSkyGrid()
