@@ -29,16 +29,16 @@ cat(paste("",
 
 configFound = FALSE
 args = commandArgs(trailingOnly = TRUE) # Parse arguments (if given)
-if ("default.conf" %in% list.files(path=".")){ # Check for default config file "config.R"
-  configFile = "default.conf"
-  configFound = TRUE
-} else if (len(args) != 0) { # get .conf file from command line arguments
+if (length(args) != 0) { # get .conf file from command line arguments
   if (file.exists(args[1])){ # check if config file exists
     configFile = args[1]
     configFound = TRUE
   } else {
     cat(paste("Error: config file '",args[1],"' does not exist",sep=""))
   }
+} else if ("default.conf" %in% list.files(path=".")){ # Check for default config file "config.R"
+  configFile = "default.conf"
+  configFound = TRUE
 } else { # Look for a '.conf' file in current directory
   for (file in list.files(path=".")){
     if (grepl(".conf",file)){
@@ -156,7 +156,7 @@ get_gal_list = function(galFile, lineNum) # Given the path to a file, extract th
   if (max(lineNum) > length(lines)){
     cat("\nWARNING: Line number is greater than the number of lines. Setting lineNum = 1 instead.\n")
     lineNum = c(1)
-  } else if (lineNume == 0){
+  } else if (lineNum == 0){
     lineNum = seq(1,length(lines))
   }
   
@@ -192,35 +192,37 @@ if (galFile == "") { # galaxy file not given in .conf file; using galList instea
 }
 
 # Validate whether all galaxies in galList have both image and PSF files
-noImg = c(); noPSF = c()
-for (galName in galList){
-  # The path to the image file
-  imgFilename = paste(galName,"_",band,".fits",sep="")
-  imgPath = paste(galsDir,galName,band,imgFilename,sep='/')
+for (band in bandList){
+  noImg = c(); noPSF = c() # lists containing galaxies without files
   
-  # The path to the PSF file
-  psfFilename = paste(galName,"_",band,"_PSF.fits",sep="")
-  psfPath = paste(galsDir,galName,band,psfFilename,sep='/')
+  for (galName in galList){
+    # The path to the image file
+    imgFilename = paste(galName,"_",band,".fits",sep="")
+    imgPath = paste(galsDir,galName,band,imgFilename,sep='/')
+    
+    # The path to the PSF file
+    psfFilename = paste(galName,"_",band,"_PSF.fits",sep="")
+    psfPath = paste(galsDir,galName,band,psfFilename,sep='/')
+    
+    if (!file.exists(imgPath)) {noImg = c(noImg, galName)}
+    if (!file.exists(psfPath)) {noPSF = c(noPSF, galName)}
+    
+  }
+
+  # Remove galaxies without image files
+  if (length(noImg) > 0){
+    cat(paste("WARNING: Galaxies without ",band,"-band image files:\n",sep=""))
+    for (galName in noImg){cat(paste(" - ",galName,"\n",sep=""))}
+    galList = setdiff(galList, noImg)
+  }
   
-  if (!file.exists(imgPath)) {noImg = c(noImg, galName)}
-  if (!file.exists(psfPath)) {noPSF = c(noPSF, galName)}
-  
+  # Remove galaxies without PSF files
+  if (length(noPSF) > 0){
+    cat(paste("WARNING: Galaxies without ",band,"-band PSF files:\n",sep=""))
+    for (galName in noPSF){cat(paste(" - ",galName,"\n",sep=""))}
+    galList = setdiff(galList, noPSF)
+  }
 }
-
-# Remove galaxies without image files
-if (length(noImg) > 0){
-  cat("WARNING: Galaxies without image files:\n")
-  for (galName in noImg){cat(paste(" - ",galName,"\n",sep=""))}
-  galList = setdiff(galList, noImg)
-}
-
-# Remove galaxies without PSF files
-if (length(noPSF) > 0){
-  cat("WARNING: Galaxies without PSF files:\n")
-  for (galName in noPSF){cat(paste(" - ",galName,"\n",sep=""))}
-  galList = setdiff(galList, noPSF)
-}
-
 
 ###################################################################
 ########################## OPTIMISATION ###########################
@@ -233,7 +235,7 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
       
       ### INPUTS ### *otherwise taken from .conf file
-      # galName = "GASS3305"
+      # galName = "GASS11956"
       # band = "r"
       # nComps = 2
 
@@ -265,14 +267,16 @@ for (galName in galList){ # loop through galaxies
       ### Get information from FITS header ###
       # Referencing keywords in header
       # <VALUE> = as.numeric(header[which(header=="<KEYWORD>")+1])
-      if (dataSource == "SDSS") {softBias = as.numeric(header[which(header=="SOFTBIAS")+1])}
       zeroPoint = as.numeric(header[which(header=="ZP")+1])
       gain = as.numeric(header[which(header=="GAIN")+1])
       
-      ### Subtract softBias from image and PSF ###
+      ### IF SDSS: Subtract softBias from image and PSF ###
       if (dataSource == "SDSS"){
-        image0 = image0 - softBias
-        psf = psf - softBias
+        softBias = as.numeric(header[which(header=="SOFTBIAS")+1])
+        if (subSoftBias){
+          image0 = image0 - softBias
+          psf = psf - softBias
+        }
       }
       
       ############################################################
@@ -369,7 +373,7 @@ for (galName in galList){ # loop through galaxies
       # > sky level is defined as 0.0 as sky has already been subtracted.
       # > sigma map reflects the original image, however, sky pixels are set to a fixed uncertainty and object pixels have additional shot noise.
       if(verb){cat("INFO: Making sigma map.\n")}
-      sigma = profoundMakeSigma(image,sky=0.0,objects=segmentationExp$objects,sky=segmentationExp,skyRMS=skyRMS,gain=gain,plot=FALSE)
+      sigma = profoundMakeSigma(image,sky=0.0,objects=segmentationExp$objects,skyRMS=skyRMS,gain=gain,plot=FALSE)
       
       
       ###############################
@@ -617,8 +621,8 @@ for (galName in galList){ # loop through galaxies
             mag=  rep(TRUE,2), 
             re=   rep(TRUE,2),
             nser= c(TRUE,freeDisk),
-            ang=  c(!sphericalBulge,TRUE),
-            axrat=c(!sphericalBulge,TRUE),
+            ang=  c(freeBulge,TRUE),
+            axrat=c(freeBulge,TRUE),
             box = rep(fitBoxiness,2)
           )
         )
@@ -675,7 +679,7 @@ for (galName in galList){ # loop through galaxies
       
       ### Setup Data ###
       if(verb){cat("INFO: Setting up Data object.\n")}
-      Data = profitSetupData(image=image,sigma=sigma,modellist=modellist,tofit=tofit,tolog=tolog,intervals=intervals,priors=priors,
+      Data = profitSetupData(image=image,sigma=sigma,modellist=modellist,tofit=tofit,tolog=tolog,intervals=intervals, priors = if (usePriors) priors else NULL,
                              psf=psf, magzero=zeroPoint,segim=segMap, algo.func=fitMode,like.func=likeFunction,verbose=FALSE)
       
       
@@ -892,7 +896,7 @@ for (galName in galList){ # loop through galaxies
         cat(paste("PSF: ",psfFile,"\n",sep=""))
         cat(paste("\nZero point: ",zeroPoint,"\n",sep=""))
         cat(paste("gain: ",gain,"\n",sep=""))
-        cat(paste("Soft-bias: ",softBias,"\n",sep=""))
+        if (dataSource == "SDSS") {cat(paste("Soft-bias: ",softBias,"\n",sep=""))}
         
         cat("\n\n>> Sky Statistics:\n")
         cat(gsub("\\[1\\]","\n",skyStats)) # Print the sky statistics: the output from maghist() of profoundMakeSkyGrid()
@@ -902,6 +906,13 @@ for (galName in galList){ # loop through galaxies
         cat(paste("MainID: ",mainID,"\n",sep=""))
         cat("\n Stats for target object:\n")
         print(segmentation$segstats[mainID,])
+        
+        cat("\n\n>> Model controls:\n")
+        cat("Fixed component centres: ",fixedCentres,"\n")
+        cat("Fit for boxiness: ",fitBoxiness,"\n")
+        cat("Free disk Sersic: ",freeDisk,"\n")
+        cat("Free bulge shape: ",freeBulge,"\n")
+        cat("Used Priors: ",usePriors,"\n")
         
         cat("\n\n>> Initial Model:\n")
         print(modellist$sersic)
