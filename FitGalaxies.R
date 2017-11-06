@@ -36,6 +36,7 @@ if (length(args) != 0) { # get .conf file from command line arguments
   } else {
     cat(paste("Error: config file '",args[1],"' does not exist",sep=""))
   }
+  
 } else if ("default.conf" %in% list.files(path=".")){ # Check for default config file "config.R"
   configFile = "default.conf"
   configFound = TRUE
@@ -177,6 +178,10 @@ get_gal_list = function(galFile, lineNum) # Given the path to a file, extract th
 ###################################################################
 #####################  RETRIEVE GALAXY LIST  ######################
 ###################################################################
+
+if (length(args) > 1) { # Line number has been specified in comman-line argument
+  lineNum = as.integer(args[2])
+}
 
 ### Specifying which galaxies to fit. (Requires image and PSF files.) ###
 if (galFile == "") { # galaxy file not given in .conf file; using galList instead.
@@ -344,6 +349,8 @@ for (galName in galList){ # loop through galaxies
         segmentationExp = profoundMakeSegimDilate(image=image, segim=segmentationExp0$segim, expand=mainID, size=dilateSize,
                                                   magzero=zeroPoint, gain=gain, #header=header,
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+      } else {
+        segmentationExp = segmentationExp0 # set final segmentation
       }
       
       # @Hosein Hashemi:
@@ -396,18 +403,27 @@ for (galName in galList){ # loop through galaxies
       #####################################
       if(verb){cat("INFO: Getting initial guesses.\n")}
       
-      # Rough Initial model from segmentation objects
-      inits = segmentation$segstats
-      if (nComps == 2){
-        magInits = divide_magnitude(inits$mag[mainID],frac=0.4) # Arbitrary 40%/60% division of flux to Bulge/Disk
-        reInits = c(inits$semimaj[mainID]*1.0,inits$semimaj[mainID]*3)
-        nSerInits = c(4,1)
-      } else {
-        magInits = c(inits$mag[mainID])
-        reInits = c(inits$semimaj[mainID]*1.0)
-        nSerInits = c(4)
-      }
+      
+      if (inheritFrom != "" && !is.null(inheritFrom) && inheritFrom != c()){ # Initial guesses from previous fits
         
+      } else { # Rough Initial model from segmentation objects
+        inits = segmentation$segstats
+        if (nComps == 2){
+          xcenInits = rep(inits$xcen[mainID],2)
+          ycenInits = rep(inits$ycen[mainID],2)
+          magInits = divide_magnitude(inits$mag[mainID],frac=0.4) # 40%/60% division of flux to Bulge/Disk; based upon Gadotti et al. (2009)
+          reInits = c(inits$semimaj[mainID]*1.0,inits$semimaj[mainID]*3)
+          nSerInits = c(4,1)
+          angInits = rep(inits$ang[mainID],2)
+          axratInits = c(inits$axrat[mainID]) # Bulge is initially at axrat=1
+          boxInits = c(0)
+        } else {
+          magInits = c(inits$mag[mainID])
+          reInits = c(inits$semimaj[mainID]*1.0)
+          nSerInits = c(4)
+        }
+      }
+      
       ## Attempt to improve initial guesses via Isophote fitting:
       # Only run if running 2 components and the image does not contain NaN padding (i.e. galaxies on frame edges).
       if (improveInits == TRUE && nComps == 2 && padded == FALSE){
@@ -667,7 +683,7 @@ for (galName in galList){ # loop through galaxies
             ycen=list(lim=c(inits$ycen[mainID]-10,inits$ycen[mainID]+10),lim=c(inits$ycen[mainID]-10,inits$ycen[mainID]+10)),
             mag=list(lim=c(10,25),lim=c(10,25)),
             re=list(lim=c(0.25,100),lim=c(0.25,100)),
-            nser=list(lim=c(1.25,10),lim=c(0.5,1.5)),
+            nser=list(lim=c(1.25,20.0),lim=c(0.5,1.5)),
             ang=list(lim=c(-180,360),lim=c(-180,360)),
             axrat=list(lim=c(0.1,1),lim=c(0.1,1)),
             box=list(lim=c(-0.5,0.5),lim=c(-0.5,0.5)) 
@@ -833,6 +849,8 @@ for (galName in galList){ # loop through galaxies
       
       ### Plot Optimisation results ###
       if(output  && outputOptimised){
+        
+        Data$usecalcregion = FALSE # Turn usecalcregion off to calculate model over whole image.
         
         ### Plot Optimised Model Likelihood:
         optimLikelihoodFilename = paste(baseFilename,"_LikelihoodOptimised.png",sep='')
