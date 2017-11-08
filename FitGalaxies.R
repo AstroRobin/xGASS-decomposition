@@ -98,30 +98,34 @@ find_main = function(sourceList,dims) # function to find the main (central) sour
   return(mainID)
 }
 
-write_output = function(file,name,nComps,init,optim){ # Write optimisation result to file
+write_output = function(file, name, nComps, init, optim, chisq, time){ # Write optimisation result to file
   # <param: file [str]> - The file to append the results to.
   # <param: name [str]> - The name of the galaxy.
   # <param: nComps [int (1|2)]> - The number of components for the model (1 or 2).
   # <param: init [list]> - A list of initial values for the fit.
   # <param: optim [list]> - A list of optimised values.
+  # <param: chisq [float]> - The average chi squared value in the fitting region where \chi^2 = ( (image-model) / sigma )[region]
+  # <param: time [float]> - The time elapsed for the optimisation stage only (seconds)
   
   # <return: NULL>
   
   # Determine the number of columns in the table.
-  nCols = 2*nComps*8 + 1 # 2 (inital/optimised) * nComps (1|2) * 8 (num. parameters in Sersic Profile) + 1 (Galaxy ID)
+  nCols = 2*nComps*8 + 3 # 2 (inital/optimised) * nComps (1|2) * 8 (num. parameters in Sersic Profile) + 1 (Galaxy ID + chisq + elapsedTime)
   
   # Write initial and optimised parameters ro file
   if (nComps == 1){
-    write(c("GASSID","x_in","y_in","mag_in","re_in","nser_in","ang_in","axrat_in","box_in","x_out","y_out","mag_out","re_out","nser_out","ang_out","axrat_out","box_out"),file=file,ncolumns=nCols,sep=',',append=FALSE)
+    write(c("GASSID","x_in","y_in","mag_in","re_in","nser_in","ang_in","axrat_in","box_in","x_out","y_out","mag_out","re_out","nser_out","ang_out","axrat_out","box_out","chisq","elapsed_time"),file=file,ncolumns=nCols,sep=',',append=FALSE)
     write(c(name,
             init$xcen[1],init$ycen[1],init$mag[1],init$re[1],init$nser[1],init$ang[1],init$axrat[1],init$box[1],
-            optim$xcen[1],optim$ycen[1],optim$mag[1],optim$re[1],optim$nser[1],optim$ang[1],optim$axrat[1],optim$box[1]),
+            optim$xcen[1],optim$ycen[1],optim$mag[1],optim$re[1],optim$nser[1],optim$ang[1],optim$axrat[1],optim$box[1],
+            chisq, time),
           file=file,ncolumns=nCols,sep=',',append=TRUE)
   } else if (nComps == 2){
-    write(c("GASSID","x1_in","x2_in","y1_in","y2_in","mag1_in","mag2_in","re1_in","re2_in","nser1_in","nser2_in","ang1_in","ang2_in","axrat1_in","axrat2_in","box1_in","box2_in","x1_out","x2_out","y1_out","y2_out","mag1_out","mag2_out","re1_out","re2_out","nser1_out","nser2_out","ang1_out","ang2_out,axrat1_out,axrat2_out,box1_out,box2_out"),file=file,ncolumns=nCols,sep=',',append=FALSE)
+    write(c("GASSID","x1_in","x2_in","y1_in","y2_in","mag1_in","mag2_in","re1_in","re2_in","nser1_in","nser2_in","ang1_in","ang2_in","axrat1_in","axrat2_in","box1_in","box2_in","x1_out","x2_out","y1_out","y2_out","mag1_out","mag2_out","re1_out","re2_out","nser1_out","nser2_out","ang1_out","ang2_out","axrat1_out","axrat2_out","box1_out","box2_out","chisq","elapsed_time"),file=file,ncolumns=nCols,sep=',',append=FALSE)
     write(c(name, 
             init$xcen[1],init$xcen[2], init$ycen[1],init$ycen[2], init$mag[1],init$mag[2], init$re[1],init$re[2], init$nser[1],init$nser[2], init$ang[1],init$ang[2], init$axrat[1],init$axrat[2], init$box[1],init$box[2], 
-            optim$xcen[1],optim$xcen[2], optim$ycen[1],optim$ycen[2], optim$mag[1],optim$mag[2], optim$re[1],optim$re[2], optim$nser[1],optim$nser[2], optim$ang[1],optim$ang[2], optim$axrat[1],optim$axrat[2], optim$box[1],optim$box[2]),
+            optim$xcen[1],optim$xcen[2], optim$ycen[1],optim$ycen[2], optim$mag[1],optim$mag[2], optim$re[1],optim$re[2], optim$nser[1],optim$nser[2], optim$ang[1],optim$ang[2], optim$axrat[1],optim$axrat[2], optim$box[1],optim$box[2],
+            chisq, time),
           file=file,ncolumns=nCols,sep=',',append=TRUE)
   }
 }
@@ -170,6 +174,26 @@ get_gal_list = function(galFile, lineNum) # Given the path to a file, extract th
   }
   
   return(galList)
+}
+
+calc_chisq = function(image, modelImage, sigma, segMap) # Calculate the average chi^2 value across the fitting region
+{
+  # <param: image [float (matrix)]> - The data image matrix
+  # <param: modelImage [float (matrix)]> - The optimised model image matrix
+  # <param: sigma [float (matrix)]> - The errors in the image
+  # <param: segMap [float (matrix)]> - The region where the fitting was performed
+  
+  # <return: chisq [list]> - The average chi squared value in the fitting region where \chi^2 = ( (image-model) / sigma )[region]
+  
+  residual = image - modelImage # take the difference between the data image and the optimised model image
+  errorMap = residual/sigma
+  
+  region = (segMap != 0)
+  error = errorMap[region] # the map of errors across the image dimensions
+  
+  chisq = sum(error^2)/sum(region) # average over the optimisation region
+  
+  return(chisq)
 }
 
 ##################################################################
@@ -405,23 +429,24 @@ for (galName in galList){ # loop through galaxies
       
       
       if (inheritFrom != "" && !is.null(inheritFrom) && inheritFrom != c()){ # Initial guesses from previous fits
-        
-      } else { # Rough Initial model from segmentation objects
-        inits = segmentation$segstats
-        if (nComps == 2){
-          xcenInits = rep(inits$xcen[mainID],2)
-          ycenInits = rep(inits$ycen[mainID],2)
-          magInits = divide_magnitude(inits$mag[mainID],frac=0.4) # 40%/60% division of flux to Bulge/Disk; based upon Gadotti et al. (2009)
-          reInits = c(inits$semimaj[mainID]*1.0,inits$semimaj[mainID]*3)
-          nSerInits = c(4,1)
-          angInits = rep(inits$ang[mainID],2)
-          axratInits = c(inits$axrat[mainID]) # Bulge is initially at axrat=1
-          boxInits = c(0)
-        } else {
-          magInits = c(inits$mag[mainID])
-          reInits = c(inits$semimaj[mainID]*1.0)
-          nSerInits = c(4)
-        }
+        cat("\nWARNING: Inheriting initial guesses is not implemented.\n")
+      }
+      
+      # Rough Initial model from segmentation objects
+      inits = segmentation$segstats
+      if (nComps == 2){
+        xcenInits = rep(inits$xcen[mainID],2)
+        ycenInits = rep(inits$ycen[mainID],2)
+        magInits = divide_magnitude(inits$mag[mainID],frac=0.4) # 40%/60% division of flux to Bulge/Disk; based upon Gadotti et al. (2009)
+        reInits = c(inits$semimaj[mainID]*1.0,inits$semimaj[mainID]*3)
+        nSerInits = c(4,1)
+        angInits = rep(inits$ang[mainID],2)
+        axratInits = c(inits$axrat[mainID]) # Bulge is initially at axrat=1
+        boxInits = c(0)
+      } else {
+        magInits = c(inits$mag[mainID])
+        reInits = c(inits$semimaj[mainID]*1.0)
+        nSerInits = c(4)
       }
       
       ## Attempt to improve initial guesses via Isophote fitting:
@@ -804,8 +829,7 @@ for (galName in galList){ # loop through galaxies
         dev.off()
         
         optimFit = bestLD[,1] # the optimised fitting parameters
-        optimModel = profitRemakeModellist(optimFit,Data$modellist,Data$tofit,Data$tolog)$modellist # a complete model list including optimised paramters
-    
+        
         endTime = Sys.time()
         elapsedTime =  difftime(endTime,startTime,units="secs")
         
@@ -827,7 +851,23 @@ for (galName in galList){ # loop through galaxies
       
       ### Remake intial/optimised model ###
       initImage = profitMakeModel(modellist,dim=dim(image),magzero=zeroPoint)$z
-      optimImage = profitMakeModel(optimModel,dim=dim(image),magzero=zeroPoint)$z
+      
+      remakeModel = profitRemakeModellist(parm = optimFit, Data = Data)
+      optimModellist = remakeModel$modellist
+      optimParams = remakeModel$parm
+      
+      optimModel = profitMakeModel(modellist = optimModellist,
+                                   magzero = ZERO_POINT, psf = psf, dim = dim(image), 
+                                   psfdim = dim(Data$psf), whichcomponents = list(sersic="all"), 
+                                   rough = FALSE, magmu = Data$magmu, 
+                                   calcregion = Data$calcregion, docalcregion = Data$usecalcregion,
+                                   finesample = Data$finesample, convopt = Data$convopt, 
+                                   openclenv = Data$openclenv, omp_threads = Data$omp_threads)
+      
+      optimImage = optimModel$z # image of the optimised model
+      
+      # Calculate the chi^2 statistics
+      chisq = calc_chisq(image, optimImage, sigma, segMap)
       
       ### Plot Model Images ###
       if(output && outputModel){
@@ -850,7 +890,7 @@ for (galName in galList){ # loop through galaxies
       ### Plot Optimisation results ###
       if(output  && outputOptimised){
         
-        Data$usecalcregion = FALSE # Turn usecalcregion off to calculate model over whole image.
+        Data$usecalcregion = FALSE # Turn usecalcregion off to produce model over entire image.
         
         ### Plot Optimised Model Likelihood:
         optimLikelihoodFilename = paste(baseFilename,"_LikelihoodOptimised.png",sep='')
@@ -877,7 +917,7 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Writing outputs to file.\n")}
       if(output && outputResults){
         outputFilename = paste(baseFilename,"_Output.csv",sep='')
-        write_output(file=paste(outputDir,outputFilename,sep='/'),name=galName,nComps=nComps,init=modellist$sersic,optim=optimModel$sersic)
+        write_output(file=paste(outputDir,outputFilename,sep='/'),name=galName,nComps=nComps,init=modellist$sersic,optim=optimModel$sersic,chisq=chisq,time=elapsedTime)
       }
       
       ###################################################################
@@ -971,6 +1011,8 @@ for (galName in galList){ # loop through galaxies
         
         cat("\n\n>> Output Model:\n")
         print(optimModel$sersic)
+        
+        cat(paste("\n chi^2 = ",sprintf("%.3f", chisq),"\n", sep=""))
         
         cat("\n\n>> Flags:\n")
         # Check if optimised parameters are stuck to interval bounds
