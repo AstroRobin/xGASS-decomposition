@@ -465,7 +465,7 @@ for (galName in galList){ # loop through galaxies
       if (nComps == 2){
         xcenInits = rep(inits$xcen[mainID],2)
         ycenInits = rep(inits$ycen[mainID],2)
-        magInits = divide_magnitude(inits$mag[mainID],frac=0.4) # 40%/60% division of flux to Bulge/Disk; based upon Gadotti et al. (2009)
+        magInits = divide_magnitude(inits$mag[mainID],frac=bulgeFrac)
         reInits = c(inits$semimaj[mainID]*1.0,inits$semimaj[mainID]*3)
         nSerInits = c(if (nFromCon) get_sersic_index(inits$con) else 4, 1)
         angInits = rep(inits$ang[mainID],2)
