@@ -314,38 +314,37 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Creating sky mask.\n")}
       
       # Run profund to get sky statistics
-      skyMask = profoundProFound(image0, skycut=1.0, tolerance=5, size=11,
-                                    box = c(dims[1]/10,dims[2]/10), grid = c(dims[1]/25,dims[2]/25),type='bicubic',
+      skyMap = profoundProFound(image0, skycut=1.0, tolerance=5, size=15, redosky=TRUE, redoskysize=25,
+                                    box = c(dims[1]/10,dims[2]/10), grid = c(dims[1]/12,dims[2]/12),type='bicubic',
                                     magzero=zeroPoint, gain=gain, header=header, pixscale=pixScale,
                                     stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
       
       # Extract sky measurements from image using profitSkyEst()
       if(verb){cat("INFO: Measuring sky statistics.\n")}
-      skyEst = profoundSkyEst(image0, objects = skyMask$objects_redo, plot=FALSE)
+      skyEst = profoundSkyEst(image0, objects = skyMap$objects_redo, plot=FALSE)
       skyVal = skyEst$sky
       skyRMS = skyEst$skyRMS
       
       # Get sky statistics from sky map produced in profoundProFound
-      skyStats = capture.output(maghist(skyMask$sky,plot=FALSE))
+      skyStats = capture.output(maghist(skyMap$sky,plot=FALSE))
+      
+      # Subtract the background sky
+      if(verb){cat("INFO: Subtracting background sky from image.\n")}
+      image = if (skyAsGrid) (image0 - skyMap$sky) else (image0 - skyVal)
+      
       
       ### Plot input images ###
-      if (output && outputInputs){
+      if (output && outputSkyStats){
         skyStatsFilename = paste(baseFilename,"_SkyStats.png",sep='')
         png(paste(outputDir,skyStatsFilename,sep='/'),width=900,height=300,pointsize=16)
         par(mfrow=c(1,3), mar=c(4,2,2,1))
         
-        magimage(skyMask$sky,stretch = 'asinh'); text(0.1*dims[1],0.925*dims[2],"Sky",adj=0,col='white',cex=1.75)
-        magimage(skyMask$skyRMS,stretch = 'asinh'); text(0.1*dims[1],0.925*dims[2],"Sky RMS",adj=0,col='white',cex=1.75)
-        profoundSkyEst(image0, objects = skyMask$objects,
-                       plot=TRUE, grid=TRUE,xlab="Sky counts")
+        magimage(skyMap$sky,stretch = 'asinh'); text(0.1*dims[1],0.925*dims[2],"Sky",adj=0,col='white',cex=1.75)
+        magimage(skyMap$skyRMS,stretch = 'asinh'); text(0.1*dims[1],0.925*dims[2],"Sky RMS",adj=0,col='white',cex=1.75)
+        profoundSkyEst(image, objects = skyMap$objects,plot=TRUE, grid=TRUE,xlab="Sky counts")
         
         dev.off()
       }
-      
-      # Subtract the background sky
-      if(verb){cat("INFO: Subtracting background sky from image.\n")}
-      image = image0 - skyVal
-      
       
       ###########################################################
       #####  Make Segmentation map with ProFit (/ProFound)  #####
@@ -364,7 +363,7 @@ for (galName in galList){ # loop through galaxies
       # @Robin Cook: Expand Segmentation image
       if(verb){cat("INFO: Expanding central segment.\n")}
       segmentationExp0 = profoundMakeSegimExpand(image=image, segim=segmentation$segim, expand=mainID, skycut=expSkyCut, sigma=expSigma,
-                                                  sky=0.0,skyRMS=skyMask$skyRMS,
+                                                  sky=0.0,skyRMS=skyMap$skyRMS,
                                                   magzero=zeroPoint, gain=gain, #header=header,
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
@@ -374,7 +373,7 @@ for (galName in galList){ # loop through galaxies
                                                   magzero=zeroPoint, gain=gain, #header=header,
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       } else {
-        segmentationExp = segmentationExp0 # set final segmentation
+        segmentationExp = segmentationExp0 # set final segmentation undilated
       }
       
       # @Hosein Hashemi:
@@ -857,7 +856,7 @@ for (galName in galList){ # loop through galaxies
       optimParams = remakeModel$parm
       
       optimModel = profitMakeModel(modellist = optimModellist,
-                                   magzero = ZERO_POINT, psf = psf, dim = dim(image), 
+                                   magzero = zeroPoint, psf = psf, dim = dim(image), 
                                    psfdim = dim(Data$psf), whichcomponents = list(sersic="all"), 
                                    rough = FALSE, magmu = Data$magmu, 
                                    calcregion = Data$calcregion, docalcregion = Data$usecalcregion,
