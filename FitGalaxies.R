@@ -68,6 +68,35 @@ library(LaplacesDemon,warn.conflicts=FALSE) # MCMC optimisation package
 ######################### DEFINE FUNCTIONS ########################
 ###################################################################
 
+inc_gamma = function(a,x){ # Calculates the incomplete gamma function \gamma(a,x) = \int_{0}^{x} t^{a-1} e^{-t} dt
+  return(pgamma(x, a) * gamma(a))
+}
+
+calc_conc = function(n,alpha=1/3){ # Calculates the concentration index for a given Sersic index, n (based upon equations given in Graham & Driver 2005)
+  b = qgamma(0.5,2*n)
+  return( inc_gamma(2*n, b*alpha^(1/n)) / inc_gamma(2*n,b) )
+}
+
+get_sersic_index = function(c,n_min=0.5,n_max=15.0){ # Given a concentration index, calculate the Sersic index with which
+  # <param: c [float]> - The measured concentration index for the galaxy (R50/R90)
+  # <param: n_min [float]> - The minimum sersic index
+  # <param: n_max [float]> - The maximum sersic index
+  
+  # <return: n [float]> - The corresponding Sersic index for a given concentration index
+  
+  n_arr = seq(n_min,n_max,by=0.05) # an array of Sersic indices for which to calculate the concentration over
+  c_arr = calc_conc(n_arr) # The corresponding concentrations.
+  
+  # Finding the index at which the concentration array is closest to the provided concentration (i.e. min of absolute differences)
+  c_index = which.min(abs(c_arr-c))
+  
+  # Get the corresponding Sersic index
+  n = n_arr[c_index]
+  if (n == n_min || n == n_max) {cat("\nWARNING: Calculated Sersic index is beyond interval bounds.\n")}
+  
+  return(n)
+}
+
 divide_magnitude = function(magTot,frac=0.5) # Function to divide a magnitude by some fraction
 {
   # <param: magTot [float]> - The inital total magnitude of the source
@@ -438,14 +467,16 @@ for (galName in galList){ # loop through galaxies
         ycenInits = rep(inits$ycen[mainID],2)
         magInits = divide_magnitude(inits$mag[mainID],frac=0.4) # 40%/60% division of flux to Bulge/Disk; based upon Gadotti et al. (2009)
         reInits = c(inits$semimaj[mainID]*1.0,inits$semimaj[mainID]*3)
-        nSerInits = c(4,1)
+        nSerInits = c(if (nFromCon) get_sersic_index(inits$con) else 4, 1)
         angInits = rep(inits$ang[mainID],2)
-        axratInits = c(inits$axrat[mainID]) # Bulge is initially at axrat=1
-        boxInits = c(0)
+        axratInits = c(1,inits$axrat[mainID]) # Bulge is initially at axrat=1
+        boxInits = rep(0,2)
       } else {
+        xcenInits = c(inits$xcen[mainID])
+        ycenInits = c(inits$ycen[mainID])
         magInits = c(inits$mag[mainID])
         reInits = c(inits$semimaj[mainID]*1.0)
-        nSerInits = c(4)
+        nSerInits = if (nFromCon) c(get_sersic_index(inits$con)) else c(4)
       }
       
       ## Attempt to improve initial guesses via Isophote fitting:
