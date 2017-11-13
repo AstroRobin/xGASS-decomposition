@@ -77,14 +77,14 @@ calc_conc = function(n,alpha=1/3){ # Calculates the concentration index for a gi
   return( inc_gamma(2*n, b*alpha^(1/n)) / inc_gamma(2*n,b) )
 }
 
-get_sersic_index = function(c,n_min=0.5,n_max=15.0){ # Given a concentration index, calculate the Sersic index with which
+get_nser = function(c,nMin=0.5,nMax=15.0){ # Given a concentration index, calculate the Sersic index with which
   # <param: c [float]> - The measured concentration index for the galaxy (R50/R90)
-  # <param: n_min [float]> - The minimum sersic index
-  # <param: n_max [float]> - The maximum sersic index
+  # <param: nMin [float]> - The minimum Sersic index
+  # <param: nMax [float]> - The maximum Sersic index
   
   # <return: n [float]> - The corresponding Sersic index for a given concentration index
   
-  n_arr = seq(n_min,n_max,by=0.05) # an array of Sersic indices for which to calculate the concentration over
+  n_arr = seq(nMin,nMax,by=0.05) # an array of Sersic indices for which to calculate the concentration over
   c_arr = calc_conc(n_arr) # The corresponding concentrations.
   
   # Finding the index at which the concentration array is closest to the provided concentration (i.e. min of absolute differences)
@@ -92,9 +92,20 @@ get_sersic_index = function(c,n_min=0.5,n_max=15.0){ # Given a concentration ind
   
   # Get the corresponding Sersic index
   n = n_arr[c_index]
-  if (n == n_min || n == n_max) {cat("\nWARNING: Calculated Sersic index is beyond interval bounds.\n")}
+  if (n == nMin || n == nMax) {cat("\nWARNING: Calculated Sersic index is beyond interval bounds.\n")}
   
   return(n)
+}
+
+get_B2T = function(n,nMax=20.0){ # Given a Sersic index from a single component fit, calculate an estimate for the Bulge/Total ration
+  # <param: n [float]> - The single component Sersic index
+  # <param: nMax [float]> - The maximum Sersic index (defined such that B2T = 0.9 @ nMax).
+  
+  # <return: B2T [float]> - The bulge-to-total ratio.
+  
+  a = 0.2; b = 0.2 # The relation is a logarithmic function that allows a steep rise at low n and a slow plateau beyond n ~ 7
+  B2T = 0.9 * (a + b*log(n)) / (a + b*log(nMax)) # Defined to set B2t to 90% at nMax
+  return(B2T)
 }
 
 divide_magnitude = function(magTot,frac=0.5) # Function to divide a magnitude by some fraction
@@ -340,9 +351,8 @@ for (galName in galList){ # loop through galaxies
       ############################################################
       ###### Measure sky statistics with profoundProfound() ######
       ############################################################
+      # Use profound to get sky measurements
       if(verb){cat("INFO: Creating sky mask.\n")}
-      
-      # Run profund to get sky statistics
       skyMap = profoundProFound(image0, skycut=1.0, tolerance=5, size=15, redosky=TRUE, redoskysize=25,
                                     box = c(dims[1]/10,dims[2]/10), grid = c(dims[1]/12,dims[2]/12),type='bicubic',
                                     magzero=zeroPoint, gain=gain, header=header, pixscale=pixScale,
@@ -455,11 +465,6 @@ for (galName in galList){ # loop through galaxies
       #####################################
       if(verb){cat("INFO: Getting initial guesses.\n")}
       
-      
-      if (inheritFrom != "" && !is.null(inheritFrom) && inheritFrom != c()){ # Initial guesses from previous fits
-        cat("\nWARNING: Inheriting initial guesses is not implemented.\n")
-      }
-      
       # Rough Initial model from segmentation objects
       inits = segmentation$segstats
       if (nComps == 2){
@@ -467,7 +472,7 @@ for (galName in galList){ # loop through galaxies
         ycenInits = rep(inits$ycen[mainID],2)
         magInits = divide_magnitude(inits$mag[mainID],frac=bulgeFrac)
         reInits = c(inits$semimaj[mainID]*1.0,inits$semimaj[mainID]*3)
-        nSerInits = c(if (nFromCon) get_sersic_index(inits$con) else 4, 1)
+        nSerInits = c(if (nFromCon) get_nser(inits$con[mainID]) else 4, 1) # Bulge: n = 4 (de Vaucouleurs); Disk: n = 1 (Exponential)
         angInits = rep(inits$ang[mainID],2)
         axratInits = c(1,inits$axrat[mainID]) # Bulge is initially at axrat=1
         boxInits = rep(0,2)
@@ -476,8 +481,68 @@ for (galName in galList){ # loop through galaxies
         ycenInits = c(inits$ycen[mainID])
         magInits = c(inits$mag[mainID])
         reInits = c(inits$semimaj[mainID]*1.0)
-        nSerInits = if (nFromCon) c(get_sersic_index(inits$con)) else c(4)
+        nSerInits = if (nFromCon) c(get_nser(inits$con[mainID])) else c(4)
+        angInits = c(inits$ang[mainID])
+        axratInits = c(inits$axrat[mainID])
+        boxInits = c(0)
       }
+      
+      # Create initial modellist
+      modellist0 = list(
+        sersic=list(
+          xcen= xcenInits,
+          ycen= ycenInits,
+          mag = magInits,
+          re=   reInits,
+          nser= nSerInits,
+          ang=  angInits,
+          axrat=axratInits,
+          box=  boxInits
+        )
+      )
+      
+      # If inheritFrom, replace initial parameters with results from the specified previous optimisation run.
+      if (inheritFrom != "" && !is.null(inheritFrom) && inheritFrom != c()){
+        cat("\nWARNING: Inheriting initial guesses is not tested.\n")
+        
+        # Get the inheriting RData file
+        envirFile = paste(galName,"-",inheritFrom$form,"_",inheritFrom$band,"_",inheritFrom$nComps,"comp_WorkSpace.RData",sep="")
+        baseDir = "/home/robincook/Documents/PhD/GASS/Galaxies" # HP-Laptop
+        #baseDir = "/short/re8/rc4459/Documents/PhD/GASS/Galaxies" # Raijin
+        
+        tempEnvir = new.env() # Create temporary envronment to place workspace of inheriting optimisation run.
+        load(paste(baseDir,galName,"Fitting",inheritFrom$form,envirFile,sep="/"), envir=tempEnvir) # load inheriting RData into temporary environment
+        
+        inheritModellist = get('modellist',tempEnvir)$sersic
+        
+        if (nComps == inheritFrom$nComps){ # The inheriting parameters have the same model structure
+          for (param in names(optimModellist$sersic)) {
+            if (inheritParams$sersic[[param]] == TRUE){
+              modellist0$sersic[[param]] = inheritModellist[[param]]
+            }
+          }
+        } else { # going from 1comp model -> 2comp model
+          for (param in names(optimModellist$sersic)) {
+            if (inheritParams$sersic[[param]] == TRUE){
+              if (param == "xcen" || param == "ycen" || param == "ang" || param == "box"){
+                modellist0$sersic[[param]] = inheritModellist[[param]]
+              } else if (param == "mag") { # use bulgeFrac IF given, ELSE estimate bulgeFrac from nSer
+                modellist0$sersic[[param]] = divide_magnitude(inheritModellist[[param]], frac = if (is.null(bulgeFrac)) get_B2T(inheritModellist$nser) else bulgeFrac)
+              } else if (param == "re") { # arbitrary 0.333:1 (Bulge:Disk) divisions of effective radii
+                modellist0$sersic[[param]] = c(1/3*inheritModellist[[param]],inheritModellist[[param]])
+              } else if (param == "nser") { # Assume nSer is describing towards bulge nSer; assume exponential disk.
+                modellist0$sersic[[param]] = c(inheritModellist[[param]],1)
+              } else if (param == "axrat") { # Assume axial ratio is describing that of the disk only; assume spherical bulge
+                modellist0$sersic[[param]] = c(1,inheritModellist[[param]])
+              }
+            }
+          }
+        }
+        
+        rm(tempEnvir) # remove the temporary environment from memory
+      }
+      
+      
       
       ## Attempt to improve initial guesses via Isophote fitting:
       # Only run if running 2 components and the image does not contain NaN padding (i.e. galaxies on frame edges).
@@ -595,18 +660,19 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Defining ProFit inputs.\n")}
       if (nComps == 1){
         ## SINGLE SERSIC PROFILE ##
-        modellist = list(
-          sersic=list(
-            xcen= c(inits$xcen[mainID]),
-            ycen= c(inits$ycen[mainID]),
-            mag=  magInits,
-            re=   reInits,
-            nser= nSerInits,
-            ang=  c(inits$ang[mainID]),
-            axrat=c(inits$axrat[mainID]), # Bulge is initially at axrat=1
-            box=c(0) # no boxiness
-          )
-        )
+        modellist = modellist0
+        # modellist = list(
+        #   sersic=list(
+        #     xcen= ycenInits,
+        #     ycen= xcenInits,
+        #     mag=  magInits,
+        #     re=   reInits,
+        #     nser= nSerInits,
+        #     ang=  angInits,
+        #     axrat=axratInits, # Bulge is initially at axrat=1
+        #     box=  boxInits # no boxiness
+        #   )
+        # )
         
         # Parameters to fit
         tofit=list(
@@ -671,18 +737,19 @@ for (galName in galList){ # loop through galaxies
         # END Single Sersic 
       } else if (nComps == 2){
         ## DOUBLE SERSIC PROFILE ##
-        modellist = list(
-          sersic=list(
-            xcen= c(inits$xcen[mainID],inits$xcen[mainID]),
-            ycen= c(inits$ycen[mainID],inits$ycen[mainID]),
-            mag = magInits,
-            re=   reInits,
-            nser= nSerInits,
-            ang=  c(inits$ang[mainID],inits$ang[mainID]),
-            axrat=c(1,inits$axrat[mainID]), # Bulge is initially at axrat=1
-            box=c(0,0) # no boxiness
-          )
-        )
+        modellist = modellist0
+        # modellist = list(
+        #   sersic=list(
+        #     xcen= c(inits$xcen[mainID],inits$xcen[mainID]),
+        #     ycen= c(inits$ycen[mainID],inits$ycen[mainID]),
+        #     mag = magInits,
+        #     re=   reInits,
+        #     nser= nSerInits,
+        #     ang=  c(inits$ang[mainID],inits$ang[mainID]),
+        #     axrat=c(1,inits$axrat[mainID]), # Bulge is initially at axrat=1
+        #     box=c(0,0) # no boxiness
+        #   )
+        # )
         
         # Parameters to fit
         tofit=list(
