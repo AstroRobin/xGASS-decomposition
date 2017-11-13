@@ -947,7 +947,7 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Writing outputs to file.\n")}
       if(output && outputResults){
         outputFilename = paste(baseFilename,"_Output.csv",sep='')
-        write_output(file=paste(outputDir,outputFilename,sep='/'),name=galName,nComps=nComps,init=modellist$sersic,optim=optimModel$sersic,chisq=chisq,time=elapsedTime)
+        write_output(file=paste(outputDir,outputFilename,sep='/'),name=galName,nComps=nComps,init=modellist$sersic,optim=optimModellist$sersic,chisq=chisq,time=elapsedTime)
       }
       
       ###################################################################
