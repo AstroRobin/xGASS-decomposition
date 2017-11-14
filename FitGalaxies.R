@@ -237,7 +237,6 @@ calc_chisq = function(image, modelImage, sigma, segMap) # Calculate the average 
 
 ##################################################################
 
-
 ###################################################################
 #####################  RETRIEVE GALAXY LIST  ######################
 ###################################################################
@@ -245,6 +244,7 @@ calc_chisq = function(image, modelImage, sigma, segMap) # Calculate the average 
 if (length(args) > 1) { # Line number has been specified in comman-line argument
   lineNum = as.integer(args[2])
 }
+
 
 ### Specifying which galaxies to fit. (Requires image and PSF files.) ###
 if (galFile == "") { # galaxy file not given in .conf file; using galList instead.
@@ -303,7 +303,8 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
       
       ### INPUTS ### *otherwise taken from .conf file
-      # galName = "GASS4074"
+      # galName = "GASS11956"
+
       # band = "r"
       # nComps = 2
 
@@ -351,6 +352,7 @@ for (galName in galList){ # loop through galaxies
       ###### Measure sky statistics with profoundProfound() ######
       ############################################################
       # Use profound to get sky measurements
+
       if(verb){cat("INFO: Creating initial sky mask.\n")} # initial sky mask
       skyMap0 = profoundProFound(image0, skycut=1.0, tolerance=5, size=11, redosky=TRUE, redoskysize=25,
                                     #box = c(dims[1]/10,dims[2]/10), grid = c(dims[1]/12,dims[2]/12),type='bicubic',
@@ -371,6 +373,7 @@ for (galName in galList){ # loop through galaxies
       # Extract sky measurement statistics from image using profitSkyEst()
       if(verb){cat("INFO: Measuring sky statistics.\n")} 
       skyEst = profoundSkyEst(image0, objects = skyMap$objects, plot=FALSE)
+      
       skyVal = skyEst$sky
       skyRMS = skyEst$skyRMS
       
@@ -401,6 +404,7 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Creating Segmentation image.\n")}
       
       # @Robin Cook: Extract sources
+
       segmentation0 = profoundProFound(image, sigma=segSigma, skycut=segSkyCut, tolerance=segTol, ext=segExt,
                                       magzero=zeroPoint, gain=gain, #header=header,
                                       stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
@@ -417,7 +421,6 @@ for (galName in galList){ # loop through galaxies
                                                   stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
       # @Robin Cook: Dilate Segmentation image
-      
       if (dilateSize != 0){ # if dilation > 0, perform dilation.
         if(verb){cat("INFO: Performing final dilation.\n")}
         segmentationExp = profoundMakeSegimDilate(image=image, segim=segmentationExp0$segim, expand=mainID, size=dilateSize,
@@ -553,7 +556,7 @@ for (galName in galList){ # loop through galaxies
         
         rm(tempEnvir) # remove the temporary environment from memory
       }
-      
+                                                              
       ## Attempt to improve initial guesses via Isophote fitting:
       # Only run if running 2 components and the image does not contain NaN padding (i.e. galaxies on frame edges).
       if (improveInits == TRUE && nComps == 2 && padded == FALSE){
@@ -1120,6 +1123,8 @@ for (galName in galList){ # loop through galaxies
         
         cat("\n\n>> Output Model:\n")
         print(optimModellist$sersic)
+        
+        cat(paste("\n chi^2 = ",sprintf("%.3f", chisq),"\n", sep=""))
         
         cat(paste("\n chi^2 = ",sprintf("%.3f", chisq),"\n", sep=""))
         
