@@ -531,33 +531,38 @@ for (galName in galList){ # loop through galaxies
         # Get the inheriting RData file
         envirFile = paste(galName,"-",inheritFrom$form,"_",inheritFrom$band,"_",inheritFrom$nComps,"comp_WorkSpace.RData",sep="")
         
-        tempEnvir = new.env() # Create temporary envronment to place workspace of inheriting optimisation run.
-        load(paste(galsDir,galName,"Fitting",inheritFrom$form,envirFile,sep="/"), envir=tempEnvir) # load inheriting RData into temporary environment
-        
-        inheritModellist = get('modellist',tempEnvir)
-        
-        if (nComps == inheritFrom$nComps){ # The inheriting parameters have the same model structure
-          for (param in names(inheritModellist$sersic)) {
-            if (inheritParams$sersic[[param]] == TRUE){
-              modellist0$sersic[[param]] = inheritModellist$sersic[[param]]
-            }
-          }
-        } else { # going from 1comp model -> 2comp model
-          for (param in names(inheritModellist$sersic)){
-            if (inheritParams$sersic[[param]] == TRUE){
-              if (param == "xcen" || param == "ycen" || param == "ang" || param == "box"){
-                modellist0$sersic[[param]] = rep(inheritModellist$sersic[[param]],2)
-              } else if (param == "mag") { # use bulgeFrac IF given, ELSE estimate bulgeFrac from nSer
-                modellist0$sersic[[param]] = divide_magnitude(inheritModellist$sersic[[param]], frac = if (is.null(bulgeFrac)) get_B2T(inheritModellist$sersic$nser) else bulgeFrac)
-              } else if (param == "re") { # arbitrary 0.333:1 (Bulge:Disk) divisions of effective radii
-                modellist0$sersic[[param]] = c(1/3*inheritModellist$sersic[[param]],inheritModellist$sersic[[param]])
-              } else if (param == "nser") { # Assume nSer is describing towards bulge nSer; assume exponential disk.
-                modellist0$sersic[[param]] = c(inheritModellist$sersic[[param]],1)
-              } else if (param == "axrat") { # Assume axial ratio is describing that of the disk only; assume spherical bulge
-                modellist0$sersic[[param]] = c(1,inheritModellist$sersic[[param]])
+        if (file.exists( paste(galsDir,galName,"Fitting",inheritFrom$form,envirFile,sep="/") )){
+          print('ding')
+          tempEnvir = new.env() # Create temporary envronment to place workspace of inheriting optimisation run.
+          load(paste(galsDir,galName,"Fitting",inheritFrom$form,envirFile,sep="/"), envir=tempEnvir) # load inheriting RData into temporary environment
+          
+          inheritModellist = get('modellist',tempEnvir)
+          
+          if (nComps == inheritFrom$nComps){ # The inheriting parameters have the same model structure
+            for (param in names(inheritModellist$sersic)) {
+              if (inheritParams$sersic[[param]] == TRUE){
+                modellist0$sersic[[param]] = inheritModellist$sersic[[param]]
               }
             }
-          }
+          } else { # going from 1comp model -> 2comp model
+            for (param in names(inheritModellist$sersic)){
+              if (inheritParams$sersic[[param]] == TRUE){
+                if (param == "xcen" || param == "ycen" || param == "ang" || param == "box"){
+                  modellist0$sersic[[param]] = rep(inheritModellist$sersic[[param]],2)
+                } else if (param == "mag") { # use bulgeFrac IF given, ELSE estimate bulgeFrac from nSer
+                  modellist0$sersic[[param]] = divide_magnitude(inheritModellist$sersic[[param]], frac = if (is.null(bulgeFrac)) get_B2T(inheritModellist$sersic$nser) else bulgeFrac)
+                } else if (param == "re") { # arbitrary 0.333:1 (Bulge:Disk) divisions of effective radii
+                  modellist0$sersic[[param]] = c(1/3*inheritModellist$sersic[[param]],inheritModellist$sersic[[param]])
+                } else if (param == "nser") { # Assume nSer is describing towards bulge nSer; assume exponential disk.
+                  modellist0$sersic[[param]] = c(inheritModellist$sersic[[param]],1)
+                } else if (param == "axrat") { # Assume axial ratio is describing that of the disk only; assume spherical bulge
+                  modellist0$sersic[[param]] = c(1,inheritModellist$sersic[[param]])
+                }
+              } # END IF param is to be inheritted
+            } # END loop over parameters
+          } # END 1comp --> 2comp 
+        } else { # RData file did not exist
+          cat(paste("\nWARNING: ",galName," does not has existing .RData file for: run='",inheritFrom$form,"'; band='",inheritFrom$band,"'; nComps='",inheritFrom$nComps,"'.\n",sep=""))
         }
         
         rm(envirFile,tempEnvir) # remove the temporary environment from memory
@@ -956,7 +961,6 @@ for (galName in galList){ # loop through galaxies
         
         bestLD=magtri(LDFit$Posterior1,samples=1000,samptype='end')
         dev.off()
-        s
         optimFit = bestLD[,1] # the optimised fitting parameters
         
         endTime = Sys.time()
