@@ -27,8 +27,9 @@ cat(paste("",
 ######################## LOAD CONFIG FILES ########################
 ###################################################################
 
-configFound = FALSE
 args = commandArgs(trailingOnly = TRUE) # Parse arguments (if given)
+
+configFound = FALSE
 if (length(args) != 0) { # get .conf file from command line arguments
   if (file.exists(args[1])){ # check if config file exists
     configFile = args[1]
@@ -137,7 +138,7 @@ find_main = function(sourceList,dims) # function to find the main (central) sour
   return(mainID)
 }
 
-write_output = function(file, name, nComps, init, optim, chisq, time){ # Write optimisation result to file
+write_output = function(file, name, nComps, init, optim, chisq, time, stat){ # Write optimisation result to file
   # <param: file [str]> - The file to append the results to.
   # <param: name [str]> - The name of the galaxy.
   # <param: nComps [int (1|2)]> - The number of components for the model (1 or 2).
@@ -145,26 +146,27 @@ write_output = function(file, name, nComps, init, optim, chisq, time){ # Write o
   # <param: optim [list]> - A list of optimised values.
   # <param: chisq [float]> - The average chi squared value in the fitting region where \chi^2 = ( (image-model) / sigma )[region]
   # <param: time [float]> - The time elapsed for the optimisation stage only (seconds)
+  # <param: stat [boolean (1|0)]> - The stationarity (lack of trend) of the optimisation according to the BMK.Diagnostic in Laplaces Demon (1 = stationary; 2 = not stationary)
   
   # <return: NULL>
   
   # Determine the number of columns in the table.
-  nCols = 2*nComps*8 + 3 # 2 (inital/optimised) * nComps (1|2) * 8 (num. parameters in Sersic Profile) + 1 (Galaxy ID + chisq + elapsedTime)
+  nCols = 2*nComps*8 + 4 # 2 (inital/optimised) * nComps (1|2) * 8 (num. parameters in Sersic Profile) + 1 (Galaxy ID + chisq + elapsedTime + stationarity)
   
   # Write initial and optimised parameters ro file
   if (nComps == 1){
-    write(c("GASSID","x_in","y_in","mag_in","re_in","nser_in","ang_in","axrat_in","box_in","x_out","y_out","mag_out","re_out","nser_out","ang_out","axrat_out","box_out","chisq","elapsed_time"),file=file,ncolumns=nCols,sep=',',append=FALSE)
+    write(c("GASSID","x_in","y_in","mag_in","re_in","nser_in","ang_in","axrat_in","box_in","x_out","y_out","mag_out","re_out","nser_out","ang_out","axrat_out","box_out","chisq","elapsed_time","stationarity"),file=file,ncolumns=nCols,sep=',',append=FALSE)
     write(c(name,
             init$xcen[1],init$ycen[1],init$mag[1],init$re[1],init$nser[1],init$ang[1],init$axrat[1],init$box[1],
             optim$xcen[1],optim$ycen[1],optim$mag[1],optim$re[1],optim$nser[1],optim$ang[1],optim$axrat[1],optim$box[1],
-            chisq, time),
+            chisq, time, stat),
           file=file,ncolumns=nCols,sep=',',append=TRUE)
   } else if (nComps == 2){
-    write(c("GASSID","x1_in","x2_in","y1_in","y2_in","mag1_in","mag2_in","re1_in","re2_in","nser1_in","nser2_in","ang1_in","ang2_in","axrat1_in","axrat2_in","box1_in","box2_in","x1_out","x2_out","y1_out","y2_out","mag1_out","mag2_out","re1_out","re2_out","nser1_out","nser2_out","ang1_out","ang2_out","axrat1_out","axrat2_out","box1_out","box2_out","chisq","elapsed_time"),file=file,ncolumns=nCols,sep=',',append=FALSE)
+    write(c("GASSID","x1_in","x2_in","y1_in","y2_in","mag1_in","mag2_in","re1_in","re2_in","nser1_in","nser2_in","ang1_in","ang2_in","axrat1_in","axrat2_in","box1_in","box2_in","x1_out","x2_out","y1_out","y2_out","mag1_out","mag2_out","re1_out","re2_out","nser1_out","nser2_out","ang1_out","ang2_out","axrat1_out","axrat2_out","box1_out","box2_out","chisq","elapsed_time","stationarity"),file=file,ncolumns=nCols,sep=',',append=FALSE)
     write(c(name, 
             init$xcen[1],init$xcen[2], init$ycen[1],init$ycen[2], init$mag[1],init$mag[2], init$re[1],init$re[2], init$nser[1],init$nser[2], init$ang[1],init$ang[2], init$axrat[1],init$axrat[2], init$box[1],init$box[2], 
             optim$xcen[1],optim$xcen[2], optim$ycen[1],optim$ycen[2], optim$mag[1],optim$mag[2], optim$re[1],optim$re[2], optim$nser[1],optim$nser[2], optim$ang[1],optim$ang[2], optim$axrat[1],optim$axrat[2], optim$box[1],optim$box[2],
-            chisq, time),
+            chisq, time, stat),
           file=file,ncolumns=nCols,sep=',',append=TRUE)
   }
 }
@@ -237,6 +239,7 @@ calc_chisq = function(image, modelImage, sigma, segMap) # Calculate the average 
 
 ##################################################################
 
+
 ###################################################################
 #####################  RETRIEVE GALAXY LIST  ######################
 ###################################################################
@@ -244,7 +247,6 @@ calc_chisq = function(image, modelImage, sigma, segMap) # Calculate the average 
 if (length(args) > 1) { # Line number has been specified in comman-line argument
   lineNum = as.integer(args[2])
 }
-
 
 ### Specifying which galaxies to fit. (Requires image and PSF files.) ###
 if (galFile == "") { # galaxy file not given in .conf file; using galList instead.
@@ -290,6 +292,8 @@ for (band in bandList){
     for (galName in noPSF){cat(paste(" - ",galName,"\n",sep=""))}
     galList = setdiff(galList, noPSF)
   }
+  
+  rm(imgPath,imgFilename,psfPath,psfFilename,galName)
 }
 
 ###################################################################
@@ -303,8 +307,7 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
       
       ### INPUTS ### *otherwise taken from .conf file
-      # galName = "GASS11956"
-
+      # galName = "GASS4074"
       # band = "r"
       # nComps = 2
 
@@ -351,29 +354,37 @@ for (galName in galList){ # loop through galaxies
       ############################################################
       ###### Measure sky statistics with profoundProfound() ######
       ############################################################
+      
+      # Get sky box car filter dimensions
+      if (!is.na(skyBoxNum)){ # Box size specified as num. of boxes within image
+        skyBoxDims = rep(as.integer(dims[1]/skyBoxNum),2)
+      } else if (!is.na(skyBoxSize)){ # Box size given as absolute
+        skyBoxDims = rep(as.integer(skyBoxSize),2)
+      } else { # Default box size
+        skyBoxDims = rep(101,2)
+      }
+      
       # Use profound to get sky measurements
-
       if(verb){cat("INFO: Creating initial sky mask.\n")} # initial sky mask
-      skyMap0 = profoundProFound(image0, skycut=1.0, tolerance=5, size=11, redosky=TRUE, redoskysize=25,
+      skyMap0 = profoundProFound(image0, skycut=1.0, tolerance=5, redosky=TRUE, redoskysize=21, pixcut=9,
                                     #box = c(dims[1]/10,dims[2]/10), grid = c(dims[1]/12,dims[2]/12),type='bicubic',
-                                    magzero=zeroPoint, gain=gain, header=header, pixscale=pixScale,
+                                    magzero=zeroPoint, gain=gain, pixscale=pixScale, # header=header,
                                     stats=FALSE, rotstats=FALSE, boundstats=FALSE, plot=TRUE)
       
       if(verb){cat("INFO: Expanding sky mask.\n")} # Expanding the sky mask further with dilation
-      skyMapExp = profoundMakeSegimDilate(image0, segim=skyMap0$segim, tolerance=5, size=31, skycut=0.0, sky=skyMap0$sky, skyRMS=skyMap0$skyRMS,
-                                          magzero=zeroPoint, gain=gain, header=header, pixscale=pixScale,
+      skyMapExp = profoundMakeSegimDilate(image0, segim=skyMap0$segim, tolerance=5, size=15, skycut=0.0, sky=skyMap0$sky, skyRMS=skyMap0$skyRMS,
+                                          magzero=zeroPoint, gain=gain, pixscale=pixScale,# header=header,
                                           stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
       if(verb){cat("INFO: Measuring sky map.\n")} # Measuring the sky map across the image
-      skyMap = profoundProFound(image0, segim = skyMapExp$segim,pixcut=5,
-                                 box = c(dims[1]/15,dims[2]/15), grid = c(dims[1]/10,dims[2]/10),type='bicubic',
-                                 magzero=zeroPoint, gain=gain, header=header, pixscale=pixScale,
+      skyMap = profoundProFound(image0, segim = skyMapExp$segim,
+                                 box = skyBoxDims, grid = skyBoxDims,type='bicubic',
+                                 magzero=zeroPoint, gain=gain, pixscale=pixScale, # header=header,
                                  stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
       
       # Extract sky measurement statistics from image using profitSkyEst()
       if(verb){cat("INFO: Measuring sky statistics.\n")} 
-      skyEst = profoundSkyEst(image0, objects = skyMap$objects, plot=FALSE)
-      
+      skyEst = profoundSkyEst(image0, objects = skyMap$objects_redo, plot=FALSE)
       skyVal = skyEst$sky
       skyRMS = skyEst$skyRMS
       
@@ -388,7 +399,7 @@ for (galName in galList){ # loop through galaxies
       ### Plot input images ###
       if (output && outputSkyStats){
         skyStatsFilename = paste(baseFilename,"_SkyStats.png",sep='')
-        png(paste(outputDir,skyStatsFilename,sep='/'),width=900,height=300,pointsize=16)
+        png(paste(outputDir,skyStatsFilename,sep='/'),width=900,height=340,pointsize=16)
         par(mfrow=c(1,3), mar=c(4,2,2,1))
         
         magimage(skyMap$sky,stretch = 'asinh'); text(0.1*dims[1],0.925*dims[2],"Sky",adj=0,col='white',cex=1.75)
@@ -404,10 +415,9 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Creating Segmentation image.\n")}
       
       # @Robin Cook: Extract sources
-
       segmentation0 = profoundProFound(image, sigma=segSigma, skycut=segSkyCut, tolerance=segTol, ext=segExt,
                                       magzero=zeroPoint, gain=gain, #header=header,
-                                      stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+                                      stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
       
       # Find the main (central) source
       if(verb){cat("INFO: Finding central source.\n")}
@@ -418,9 +428,10 @@ for (galName in galList){ # loop through galaxies
       segmentationExp0 = profoundMakeSegimExpand(image=image, segim=segmentation0$segim, expand=mainID, skycut=expSkyCut, sigma=expSigma,
                                                   sky=0.0,skyRMS=skyMap$skyRMS,
                                                   magzero=zeroPoint, gain=gain, #header=header,
-                                                  stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+                                                  stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
       
       # @Robin Cook: Dilate Segmentation image
+      
       if (dilateSize != 0){ # if dilation > 0, perform dilation.
         if(verb){cat("INFO: Performing final dilation.\n")}
         segmentationExp = profoundMakeSegimDilate(image=image, segim=segmentationExp0$segim, expand=mainID, size=dilateSize,
@@ -434,7 +445,12 @@ for (galName in galList){ # loop through galaxies
       #segmentation = profitProFound(image, sigma=4, skycut=2, tolerance=5, size=11, pixcut = 5,
       #                              magzero=zeroPoint, gain=gain, header=header,
       #                              stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
-    
+      
+      # Save segmentation stats to file
+      if(output && outputSegStats){
+        segStatsFilename = paste(baseFilename,"_SegmentationStats.csv",sep='')
+        write.csv(segmentation0$segstats,file=paste(outputDir,segStatsFilename,sep='/'),quote=FALSE,row.names=FALSE)
+      }
       
       #Create segmentation image from only the central source
       segMap = segmentationExp$segim
@@ -443,12 +459,6 @@ for (galName in galList){ # loop through galaxies
       # [visualisation] Make a segmentation map image using pixels from 'image'
       segMapIm = image
       segMapIm[segMap!=mainID]=0
-      
-      # Save to file
-      if(output && outputSegStats){
-        segStatsFilename = paste(baseFilename,"_SegmentationStats.csv",sep='')
-        write.csv(segmentation0$segstats,file=paste(outputDir,segStatsFilename,sep='/'),quote=FALSE,row.names=FALSE)
-      }
       
       
       ##########################################
@@ -517,154 +527,45 @@ for (galName in galList){ # loop through galaxies
       )
       
       # If inheritFrom, replace initial parameters with results from the specified previous optimisation run.
-      if (inheritFrom != "" && !is.null(inheritFrom) && inheritFrom != c()){
-        cat("\nWARNING: Inheriting initial guesses is not tested.\n")
-        
+      if (!is.null(inheritFrom)){
         # Get the inheriting RData file
         envirFile = paste(galName,"-",inheritFrom$form,"_",inheritFrom$band,"_",inheritFrom$nComps,"comp_WorkSpace.RData",sep="")
-        baseDir = "/home/robincook/Documents/PhD/GASS/Galaxies" # HP-Laptop
-        #baseDir = "/short/re8/rc4459/Documents/PhD/GASS/Galaxies" # Raijin
         
-        tempEnvir = new.env() # Create temporary envronment to place workspace of inheriting optimisation run.
-        load(paste(baseDir,galName,"Fitting",inheritFrom$form,envirFile,sep="/"), envir=tempEnvir) # load inheriting RData into temporary environment
-        
-        inheritModellist = get('modellist',tempEnvir)$sersic
-        
-        if (nComps == inheritFrom$nComps){ # The inheriting parameters have the same model structure
-          for (param in names(optimModellist$sersic)) {
-            if (inheritParams$sersic[[param]] == TRUE){
-              modellist0$sersic[[param]] = inheritModellist[[param]]
-            }
-          }
-        } else { # going from 1comp model -> 2comp model
-          for (param in names(optimModellist$sersic)) {
-            if (inheritParams$sersic[[param]] == TRUE){
-              if (param == "xcen" || param == "ycen" || param == "ang" || param == "box"){
-                modellist0$sersic[[param]] = inheritModellist[[param]]
-              } else if (param == "mag") { # use bulgeFrac IF given, ELSE estimate bulgeFrac from nSer
-                modellist0$sersic[[param]] = divide_magnitude(inheritModellist[[param]], frac = if (is.null(bulgeFrac)) get_B2T(inheritModellist$nser) else bulgeFrac)
-              } else if (param == "re") { # arbitrary 0.333:1 (Bulge:Disk) divisions of effective radii
-                modellist0$sersic[[param]] = c(1/3*inheritModellist[[param]],inheritModellist[[param]])
-              } else if (param == "nser") { # Assume nSer is describing towards bulge nSer; assume exponential disk.
-                modellist0$sersic[[param]] = c(inheritModellist[[param]],1)
-              } else if (param == "axrat") { # Assume axial ratio is describing that of the disk only; assume spherical bulge
-                modellist0$sersic[[param]] = c(1,inheritModellist[[param]])
+        if (file.exists( paste(galsDir,galName,"Fitting",inheritFrom$form,envirFile,sep="/") )){
+          tempEnvir = new.env() # Create temporary envronment to place workspace of inheriting optimisation run.
+          load(paste(galsDir,galName,"Fitting",inheritFrom$form,envirFile,sep="/"), envir=tempEnvir) # load inheriting RData into temporary environment
+          
+          inheritModellist = get('modellist',tempEnvir)
+          
+          if (nComps == inheritFrom$nComps){ # The inheriting parameters have the same model structure
+            for (param in names(inheritModellist$sersic)) {
+              if (inheritParams$sersic[[param]] == TRUE){
+                modellist0$sersic[[param]] = inheritModellist$sersic[[param]]
               }
             }
-          }
+          } else { # going from 1comp model -> 2comp model
+            for (param in names(inheritModellist$sersic)){
+              if (inheritParams$sersic[[param]] == TRUE){
+                if (param == "xcen" || param == "ycen" || param == "ang" || param == "box"){
+                  modellist0$sersic[[param]] = rep(inheritModellist$sersic[[param]],2)
+                } else if (param == "mag") { # use bulgeFrac IF given, ELSE estimate bulgeFrac from nSer
+                  modellist0$sersic[[param]] = divide_magnitude(inheritModellist$sersic[[param]], frac = if (is.null(bulgeFrac)) get_B2T(inheritModellist$sersic$nser) else bulgeFrac)
+                } else if (param == "re") { # arbitrary 0.333:1 (Bulge:Disk) divisions of effective radii
+                  modellist0$sersic[[param]] = c(1/3*inheritModellist$sersic[[param]],inheritModellist$sersic[[param]])
+                } else if (param == "nser") { # Assume nSer is describing towards bulge nSer; assume exponential disk.
+                  modellist0$sersic[[param]] = c(inheritModellist$sersic[[param]],1)
+                } else if (param == "axrat") { # Assume axial ratio is describing that of the disk only; assume spherical bulge
+                  modellist0$sersic[[param]] = c(1,inheritModellist$sersic[[param]])
+                }
+              } # END IF param is to be inheritted
+            } # END loop over parameters
+          } # END 1comp --> 2comp 
+        } else { # RData file did not exist
+          cat(paste("\nWARNING: ",galName," does not has existing .RData file for: run='",inheritFrom$form,"'; band='",inheritFrom$band,"'; nComps='",inheritFrom$nComps,"'.\n",sep=""))
         }
         
-        rm(tempEnvir) # remove the temporary environment from memory
+        rm(envirFile,tempEnvir) # remove the temporary environment from memory
       }
-                                                              
-      ## Attempt to improve initial guesses via Isophote fitting:
-      # Only run if running 2 components and the image does not contain NaN padding (i.e. galaxies on frame edges).
-      if (improveInits == TRUE && nComps == 2 && padded == FALSE){
-        if(verb){cat("INFO: Attempting to improve initial guess.\n")}
-        if (output && outputIsophotes){
-          isophotesFilename = paste(galName,"_",band,"_Isophotes.png",sep='')
-          png(paste(outputDir,isophotesFilename,sep='/'),width=1050,height=500,pointsize=16)
-          par(mfrow=c(1,2), mar=c(3.5,3.5,1,2))
-        }
-        
-        # Get the ellipse isophotes
-        ellipses = profoundGetEllipses(image,segim=segmentation0$segim,segID=mainID,levels=20,pixscale=pixScale,magzero=zeroPoint,dobox=FALSE,plot=output)
-        rMin = 1; rMax = 30; rDiff = 0.1
-        rLocs=seq(rMin,rMax,by=rDiff)
-        rCut = (7.5-rMin)/rDiff+1
-        
-        bulge=profitRadialSersic(rLocs, mag=magInits[1], re=reInits[1], nser=nSerInits[1])
-        disk=profitRadialSersic(rLocs, mag=magInits[2], re=reInits[2], nser=nSerInits[2])
-        
-        # Define minimisation function
-        sumsq1D=function(par=c(magInits[1], log10(reInits[1]), log10(nSerInits[1]), magInits[2], log10(reInits[2]), log10(nSerInits[2])),rad, SB, pixscale=pixScale)
-        {
-          bulge=profitRadialSersic(rad, mag=par[1], re=10^par[2], nser=10^par[3])
-          disk=profitRadialSersic(rad, mag=par[4], re=10^par[5], nser=10^par[6])
-          total=profitFlux2SB(bulge+disk, pixscale=pixscale)
-          return=sum((total-SB)^2)
-        }
-        
-        ## Interval bounds:
-        # Mag (B/D): 10 - 25
-        # Re (B/D): 0.25 - 100
-        # nSer (B): 1.25 - 10; nSer (D): 0.5 - 1.5
-        lower=c(10,-0.6021,0.09691,10,-0.6021,-0.30103)
-        upper=c(25,2,1,25,2,0.1761)
-        
-        # Run L-BFGS-B optimisation:
-        if(verb){cat("INFO: Running BFGS 1D isophotal optimisation.\n")}
-        isoFit=optim(sumsq1D, par=c(magInits[1], log10(reInits[1]), log10(nSerInits[1]), magInits[2], log10(reInits[2]), log10(nSerInits[2])),
-                    rad=ellipses$ellipses$radhi[4:19], SB=ellipses$ellipses$SB[4:19], pixscale=pixScale,
-                    method='L-BFGS-B', lower=lower, upper=upper)$par
-        
-        bulge=profitRadialSersic(rLocs, mag=isoFit[1], re=10^isoFit[2], nser=10^isoFit[3])
-        disk=profitRadialSersic(rLocs, mag=isoFit[4], re=10^isoFit[5], nser=10^isoFit[6])
-        
-        if (output && outputIsophotes) {
-          magplot(ellipses$ellipses$radhi[4:19], ellipses$ellipses$SB[4:19],ylim=c(25,17), grid=TRUE, type='l',lwd=2.5,
-                xlab='Radius (pixels)', ylab='Surface Brightness (mag/arcsec^2)',main="Bulge+Disk Surface Brightness Profile")
-          points(ellipses$ellipses$radhi[4:19],ellipses$ellipses$SB[4:19],pch=16)
-          lines(rLocs, profitFlux2SB(bulge, pixscale=pixScale), col='red',lty='dashed',lwd=2)
-          lines(rLocs, profitFlux2SB(disk, pixscale=pixScale), col='blue',lty='dashed',lwd=2)
-          lines(rLocs, profitFlux2SB(bulge+disk, pixscale=pixScale), col='green',lwd=2)
-          dev.off()
-        }
-        
-        # Check for divergence
-        isoConverge = TRUE # IF isoConverge=TRUE THEN use these as initial guesses. ELSE run acesApproximation()
-        convParams = list("mag1"=TRUE,"re1"=TRUE,"nser1"=TRUE,"mag2"=TRUE,"re2"=TRUE,"nser2"=TRUE)
-        
-        if(verb){cat("INFO: Isophotal 1D fitting results:\n")}
-        ii = 1
-        for (param in isoFit){
-          if (is.element(param,lower) || is.element(param,upper)){
-            if (ii==1){convParams["mag1"]=FALSE}
-            if (ii==2){convParams["re1"]=FALSE}
-            if (ii==3){convParams["nser1"]=FALSE}
-            if (ii==4){convParams["mag2"]=FALSE}
-            if (ii==5){convParams["re2"]=FALSE}
-            if (ii==6){convParams["nser2"]=FALSE}
-          }
-          if(verb){
-            if (ii == 1 || ii == 4){
-              cat(paste(names(convParams)[ii],': ',toString(param),'\n',sep=''))
-            } else {
-              cat(paste(names(convParams)[ii],': ',toString(10^param),'\n',sep=''))
-            }
-          }
-          ii = ii + 1
-        }
-        
-         
-        if ((convParams['mag1']==T && convParams['mag2']==T) && (convParams['re1']==T && convParams['re2']==T)){
-          isoConverge = TRUE
-        } else {
-          isoConverge = FALSE
-        }
-        
-        ### Check whether bulge dominates flux in outer regions.
-        for (ii in seq(rCut,(rMax-rMin)/rDiff+1,1)){
-          if (bulge[ii] > disk[ii]){
-             isoConverge = FALSE
-             if(verb){cat(paste("WARNING: Bulge dominates beyond r > ",toString(rCut*pixScale),"\" (r = ",toString((ii*rDiff+rCut)*pixScale),"\").\n",sep=''))}
-             break
-          }
-        }
-        
-        # If solution has converged, set the isophotal fit solution as the initial guesses
-        if (isoConverge==TRUE){
-          if(verb){cat("INFO: Replacing initial model with isophotal 1D fit solutions.\n")}
-          magInits = c(isoFit[1],isoFit[4])
-          reInits = c(10^isoFit[2],10^isoFit[5])
-          nSerInits = c(10^isoFit[3],10^isoFit[6])
-        } else {
-          if(verb){cat("WARNING: isoFit solution did not converge.\n")}
-        }
-        
-      } else { # IF nComps = 1 THEN move onto LAFit
-        isoConverge = FALSE
-      } # END iosphotal 1D fitting optimisation
       
       
       ####################################
@@ -673,7 +574,6 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Defining ProFit inputs.\n")}
       if (nComps == 1){
         ## SINGLE SERSIC PROFILE ##
-        modellist = modellist0
         # modellist = list(
         #   sersic=list(
         #     xcen= ycenInits,
@@ -686,6 +586,8 @@ for (galName in galList){ # loop through galaxies
         #     box=  boxInits # no boxiness
         #   )
         # )
+        
+        modellist = modellist0
         
         # Parameters to fit
         tofit=list(
@@ -750,7 +652,6 @@ for (galName in galList){ # loop through galaxies
         # END Single Sersic 
       } else if (nComps == 2){
         ## DOUBLE SERSIC PROFILE ##
-        modellist = modellist0
         # modellist = list(
         #   sersic=list(
         #     xcen= c(inits$xcen[mainID],inits$xcen[mainID]),
@@ -763,6 +664,8 @@ for (galName in galList){ # loop through galaxies
         #     box=c(0,0) # no boxiness
         #   )
         # )
+        
+        modellist = modellist0
         
         # Parameters to fit
         tofit=list(
@@ -840,10 +743,8 @@ for (galName in galList){ # loop through galaxies
         png(paste(outputDir,initLikelihoodFilename,sep='/'),width=1600,height=1000,pointsize=28)
         profitLikeModel(parm=Data$init,Data=Data,makeplots=TRUE,plotchisq=TRUE)
         dev.off()
-      }
       
-      ### Plot Input Model Ellipse ###
-      if(output  && outputInitial){
+        ### Plot Input Model Ellipse ###
         initEllipseFilename = paste(baseFilename,"_EllipseInitial.png",sep='')
         png(paste(outputDir,initEllipseFilename,sep='/'),width=1000,height=750,pointsize=20)
         if (nComps == 1){
@@ -855,12 +756,126 @@ for (galName in galList){ # loop through galaxies
       }
       
       
-      #########################################
-      #####   Optimise Model (+ timing)   #####
-      #########################################
+      ##################################################
+      #####   Improve Initial Guesses (Isophotal)  #####
+      ##################################################
       
-      # IF the result from 1D isophotal fitting did not converge THEN attempt a aceApproximation() fit:
-      if (improveInits==TRUE && isoConverge==FALSE) { # LaplaceApproximation LM fit
+      ## Attempt to improve initial guesses via Isophote fitting:
+      # Only run if running 2 components and the image does not contain NaN padding (i.e. galaxies on frame edges).
+      if (improveInits == TRUE && nComps == 2 && is.null(inheritFrom)){
+        if(verb){cat("INFO: Attempting to improve initial guess.\n")}
+        if (output && outputIsophotes){
+          isophotesFilename = paste(galName,"_",band,"_Isophotes.png",sep='')
+          png(paste(outputDir,isophotesFilename,sep='/'),width=1050,height=500,pointsize=16)
+          par(mfrow=c(1,2), mar=c(3.5,3.5,1,2))
+        }
+        
+        # Get the ellipse isophotes
+        ellipses = profoundGetEllipses(image,segim=segmentationExp$segim,segID=mainID,levels=20,pixscale=pixScale,magzero=zeroPoint,dobox=FALSE,plot=output)
+        rMin = 1; rMax = 30; rDiff = 0.1
+        rLocs=seq(rMin,rMax,by=rDiff)
+        rCut = (7.5-rMin)/rDiff+1
+        
+        bulgeInit = profitRadialSersic(rLocs, mag=magInits[1], re=reInits[1], nser=nSerInits[1])
+        diskInit = profitRadialSersic(rLocs, mag=magInits[2], re=reInits[2], nser=nSerInits[2])
+        
+        # Define minimisation function
+        sumsq1D=function(par=c(magInits[1], log10(reInits[1]), log10(nSerInits[1]), magInits[2], log10(reInits[2]), log10(nSerInits[2])),rad, SB, pixscale=pixScale)
+        {
+          bulge=profitRadialSersic(rad, mag=par[1], re=10^par[2], nser=10^par[3])
+          disk=profitRadialSersic(rad, mag=par[4], re=10^par[5], nser=10^par[6])
+          total=profitFlux2SB(bulge+disk, pixscale=pixscale)
+          return=sum((total-SB)^2)
+        }
+        
+        ## Interval bounds:
+        # Mag (B/D): 10 - 25
+        # Re (B/D): 0.25 - 100
+        # nSer (B): 1.25 - 20; nSer (D): 0.5 - 1.5
+        lower = c(10,log10(0.25),log10(1.25),10,log10(0.25),log10(0.5))
+        upper = c(25,log10(100), log10(20.0),25,log10(100), log10(1.5))
+        
+        # Run L-BFGS-B optimisation:
+        if(verb){cat("INFO: Running BFGS 1D isophotal optimisation.\n")}
+        isoFit=optim(sumsq1D, par=c(magInits[1], log10(reInits[1]), log10(nSerInits[1]), magInits[2], log10(reInits[2]), log10(nSerInits[2])),
+                    rad=ellipses$ellipses$radhi[4:19], SB=ellipses$ellipses$SB[4:19], pixscale=pixScale,
+                    method='L-BFGS-B', lower=lower, upper=upper)$par
+        
+        bulgeIsofit = profitRadialSersic(rLocs, mag=isoFit[1], re=10^isoFit[2], nser=10^isoFit[3])
+        diskIsofit = profitRadialSersic(rLocs, mag=isoFit[4], re=10^isoFit[5], nser=10^isoFit[6])
+        
+        if (output && outputIsophotes) {
+          magplot(ellipses$ellipses$radhi[4:19], ellipses$ellipses$SB[4:19],ylim=c(25,17), grid=TRUE, type='l',lwd=2.5,
+                xlab='Radius (pixels)', ylab='Surface Brightness (mag/arcsec^2)',main="Bulge+Disk Surface Brightness Profile")
+          points(ellipses$ellipses$radhi[4:19],ellipses$ellipses$SB[4:19],pch=16)
+          lines(rLocs, profitFlux2SB(bulgeIsofit, pixscale=pixScale), col='red',lty='dashed',lwd=2)
+          lines(rLocs, profitFlux2SB(diskIsofit, pixscale=pixScale), col='blue',lty='dashed',lwd=2)
+          lines(rLocs, profitFlux2SB(bulgeIsofit+diskIsofit, pixscale=pixScale), col='green',lwd=2)
+          dev.off()
+        }
+        
+        # Check for divergence
+        isoValid = TRUE # IF isoValid=TRUE THEN use these as initial guesses. ELSE run acesApproximation()
+        convParams = list("mag1"=TRUE,"re1"=TRUE,"nser1"=TRUE,"mag2"=TRUE,"re2"=TRUE,"nser2"=TRUE)
+        
+        if(verb){cat("INFO: Isophotal 1D fitting results:\n")}
+        ii = 1
+        for (param in isoFit){
+          if (is.element(param,lower) || is.element(param,upper)){
+            if (ii==1){convParams["mag1"]=FALSE}
+            if (ii==2){convParams["re1"]=FALSE}
+            if (ii==3){convParams["nser1"]=FALSE}
+            if (ii==4){convParams["mag2"]=FALSE}
+            if (ii==5){convParams["re2"]=FALSE}
+            if (ii==6){convParams["nser2"]=FALSE}
+          }
+          if(verb){
+            if (ii == 1 || ii == 4){
+              cat(paste(names(convParams)[ii],': ',toString(param),'\n',sep=''))
+            } else {
+              cat(paste(names(convParams)[ii],': ',toString(10^param),'\n',sep=''))
+            }
+          }
+          ii = ii + 1
+        }
+        
+        # If Re or Magnitude parameters are divergent then the isophotal solution is not valid
+        isoValid = if ((convParams['mag1']==T && convParams['mag2']==T) && (convParams['re1']==T && convParams['re2']==T)) TRUE else FALSE
+        
+        ### Check whether bulge dominates flux in outer regions.
+        bulgeSB = profitFlux2SB(bulgeIsofit, pixscale=pixScale)
+        diskSB = profitFlux2SB(diskIsofit, pixscale=pixScale)
+        for (ii in seq(rCut,(rMax-rMin)/rDiff+1,1)){
+          if (bulgeSB[ii] < diskIsofit[ii]){ # is bulge < disk? As lower values of surface magnitude means brigher
+             isoValid = FALSE
+             if(verb){cat(paste("WARNING: Bulge dominates beyond r_cut = ",toString(rCut*pixScale),"\" (@ r = ",toString((ii*rDiff+rCut)*pixScale),"\").\n",sep=''))}
+             break
+          }
+        }
+        
+        # If solution has converged, set the isophotal fit solution as the initial guesses
+        if (isoValid==TRUE){
+          if(verb){cat("INFO: Replacing initial model with isophotal 1D fit solution.\n")}
+          Data$init['sersic.mag1'] = isoFit[1]
+          Data$init['sersic.re1'] = 10^isoFit[2]
+          Data$init['sersic.nser1'] = 10^isoFit[3]
+          Data$init['sersic.mag2'] = isoFit[4]
+          Data$init['sersic.re2'] = 10^isoFit[5]
+          Data$init['sersic.nser2'] = 10^isoFit[6]
+        } else {
+          if(verb){cat("WARNING: isoFit solution did not converge.\n")}
+        }
+      } else { # IF nComps = 1 THEN move onto LAFit
+        isoValid = FALSE
+      } # END iosphotal 1D fitting optimisation
+      
+      
+      ##############################################################
+      #####   Improve Initial Guesses (LaplaceApproximation)   #####
+      ##############################################################
+      
+      # IF the result from 1D isophotal fitting did not converge THEN attempt a LaplaceApproximation() fit:
+      if (improveInits==TRUE && isoValid==FALSE && is.null(inheritFrom)) { # LaplaceApproximation LM fit
         if(verb){cat("INFO: Attempting to improve inital guess with LaplaceApproximation()\n")}
         Data$algo.func = "LA" # Change optimising algorithm
         LAFit = LaplaceApproximation(profitLikeModel,parm = Data$init, Data = Data, Iterations=1e3, Method = 'LM', CovEst='Identity', sir = FALSE)
@@ -870,10 +885,10 @@ for (galName in galList){ # loop through galaxies
         
         ### Check for divergence
         if(verb){cat("INFO: Testing LAFit for divergence.\n")}
-        LAConverge = TRUE # IF converged=TRUE THEN use these as initial guess. ELSE run LaplacesApproximation()
+        LAValid = TRUE # IF converged=TRUE THEN use these as initial guess. ELSE run LaplacesApproximation()
         for (n in seq(nComps)){
-          if (is.element(optimModel$sersic$mag[n],Data$intervals$sersic$mag[[n]])){LAConverge=FALSE}
-          if (is.element(optimModel$sersic$re[n],Data$intervals$sersic$re[[n]])){LAConverge=FALSE}
+          if (is.element(optimModel$sersic$mag[n],Data$intervals$sersic$mag[[n]])){LAValid=FALSE}
+          if (is.element(optimModel$sersic$re[n],Data$intervals$sersic$re[[n]])){LAValid=FALSE}
         }
         
         if (nComps == 2){ # Create 1D profiles for bulge/disk
@@ -881,28 +896,36 @@ for (galName in galList){ # loop through galaxies
           rLocs=seq(rMin,rMax,by=rDiff)
           rCut = (7.5-rMin)/rDiff+1
           
-          bulge=profitRadialSersic(rLocs, mag=optimModel$sersic$mag[1], re=optimModel$sersic$re[1], optimModel$sersic$nser[1])
-          disk=profitRadialSersic(rLocs, mag=optimModel$sersic$mag[2], re=optimModel$sersic$re[2], optimModel$sersic$nser[2])
+          bulgeLAfit = profitRadialSersic(rLocs, mag=optimModel$sersic$mag[1], re=optimModel$sersic$re[1], optimModel$sersic$nser[1])
+          diskLAfit = profitRadialSersic(rLocs, mag=optimModel$sersic$mag[2], re=optimModel$sersic$re[2], optimModel$sersic$nser[2])
         
           ### Check whether bulge dominates flux in outer regions.
+          bulgeSB = profitFlux2SB(bulgeLAfit, pixscale=pixScale)
+          diskSB = profitFlux2SB(diskLAfit, pixscale=pixScale)
           for (ii in seq(rCut,(rMax-rMin)/rDiff+1,1)){
-            if (bulge[ii] > disk[ii]){
-              LAConverge = FALSE
-              if(verb){cat(paste("WARNING: Bulge dominates beyond r > ",toString(rCut*pixScale),"\" (r = ",toString((ii*rDiff+rCut)*pixScale),"\").\n",sep=''))}
-              #break
+            if (bulgeSB[ii] < diskSB[ii]){
+              LAValid = FALSE
+              if(verb){cat(paste("WARNING: Bulge dominates beyond r > ",toString(rCut*pixScale),"\" (r = ",toString((rCut+ii*rDiff)*pixScale),"\").\n",sep=''))}
+              break
             }
           }
         }
         
         # If solution has converged, set the LAFit solution as the initial guess
-        if (LAConverge==TRUE){
+        if (LAValid==TRUE){
           if(verb){cat("INFO: Replacing initial model with LAFit solution.\n")}
           Data$init = LAFit$Summary1[,1]
         } else {
           if(verb){cat("INFO: LAFit solution did not converge.\n")}
         }
         
-      }  # END LAFit optimisation
+      } else {
+        LAValid = FALSE
+      } # END LAFit optimisation
+      
+      #####################################
+      #####   Optimise Model (MCMC)   #####
+      #####################################
       
       ### Laplaces Demon (Full MCMC)
       if(verb){cat(paste("\n\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n\n",sep=""))}
@@ -937,7 +960,6 @@ for (galName in galList){ # loop through galaxies
         
         bestLD=magtri(LDFit$Posterior1,samples=1000,samptype='end')
         dev.off()
-        
         optimFit = bestLD[,1] # the optimised fitting parameters
         
         endTime = Sys.time()
@@ -958,8 +980,12 @@ for (galName in galList){ # loop through galaxies
         }
       }
       
+      ##########################################
+      ###   Remake intial/optimised models   ###
+      ##########################################
       
-      ### Remake intial/optimised model ###
+      Data$usecalcregion = FALSE # Turn usecalcregion off to produce model over entire image.
+      
       initImage = profitMakeModel(modellist,dim=dim(image),magzero=zeroPoint)$z
       
       remakeModel = profitRemakeModellist(parm = optimFit, Data = Data)
@@ -969,38 +995,31 @@ for (galName in galList){ # loop through galaxies
       optimModel = profitMakeModel(modellist = optimModellist,
                                    magzero = zeroPoint, psf = psf, dim = dim(image), 
                                    psfdim = dim(Data$psf), whichcomponents = list(sersic="all"), 
-                                   rough = FALSE, magmu = Data$magmu, 
-                                   calcregion = Data$calcregion, docalcregion = Data$usecalcregion,
-                                   finesample = Data$finesample, convopt = Data$convopt, 
-                                   openclenv = Data$openclenv, omp_threads = Data$omp_threads)
+                                   rough = FALSE, magmu = Data$magmu)
       
       optimImage = optimModel$z # image of the optimised model
       
-      # Calculate the chi^2 statistics
-      chisq = calc_chisq(image, optimImage, sigma, segMap)
-      
       ### Plot Model Images ###
       if(output && outputModel){
-        noise = matrix( rnorm(dims[1]*dims[2],mean=0.0,sd=skyEst$skyRMS), dims[1], dims[2]) 
+        noise = matrix( rnorm(dims[1]*dims[2],mean=0.0,sd=skyEst$skyRMS), dims[1], dims[2])
+        
         initModelFilename = paste(baseFilename,"_ModelImage.png",sep='')
-        png(paste(outputDir,initModelFilename,sep='/'),width=1200,height=400,pointsize = 20)
-        par(mfrow=c(1,3), mar=c(0.4,0.4,1,1))
-        magimage(image,axes=F,bad=0); text(0.15*dim(image)[1],0.95*dim(image)[2],"Image",col='white',cex= 2)
-        magimage(initImage+noise,axes=F,bad=0); 
-        text(0.25*dim(image)[1],0.95*dim(image)[2],"Initial Model",col='white',cex= 2)
-        text(0.715*dim(image)[1],0.05*dim(image)[2],expression(paste("N: ",mu, "=0, ", sigma,"=")),col='white',cex= 1.5)
-        text(0.9*dim(image)[1],0.05*dim(image)[2],format(skyRMS,digits=3),col='white',cex= 1.5)
-        magimage(optimImage+noise,axes=F,bad=0);
-        text(0.3*dim(image)[1],0.95*dim(image)[2],"Optimised Model",col='white',cex= 2)
-        text(0.715*dim(image)[1],0.05*dim(image)[2],expression(paste("N: ",mu, "=0, ", sigma,"=")),col='white',cex= 1.5)
-        text(0.9*dim(image)[1],0.05*dim(image)[2],format(skyRMS,digits=3),col='white',cex= 1.5)
+        png(paste(outputDir,initModelFilename,sep='/'),width=1200,height=800,pointsize = 20)
+        par(mfrow=c(1,2), mar=c(0.4,0.4,1,1))
+        
+        magimage(image,axes=F,bad=0)
+        text(0.025*dim(image)[1],0.95*dim(image)[2],"Image",col='white',pos=4,cex=1.5)
+        
+        magimage(optimImage+noise,axes=F,bad=0)
+        text(0.025*dim(image)[1],0.95*dim(image)[2],"Optimised Model",col='white',pos=4,cex=1.5)
+        text(0.875*dim(image)[1],0.05*dim(image)[2],expression(paste("N: ",mu, "=0.0, ", sigma,"=")),col='white',pos=2,cex=1.0)
+        text(0.825*dim(image)[1],0.05*dim(image)[2],format(skyRMS,digits=3),col='white',pos=4,cex=1.0)
+        
         dev.off()
       }
       
       ### Plot Optimisation results ###
       if(output  && outputOptimised){
-        
-        Data$usecalcregion = FALSE # Turn usecalcregion off to produce model over entire image.
         
         ### Plot Optimised Model Likelihood:
         optimLikelihoodFilename = paste(baseFilename,"_LikelihoodOptimised.png",sep='')
@@ -1013,13 +1032,21 @@ for (galName in galList){ # loop through galaxies
         optimEllipseFilename = paste(baseFilename,"_EllipseOptimised.png",sep='')
         png(paste(outputDir,optimEllipseFilename,sep='/'),width=1000,height=750,pointsize=20)
         if (nComps == 1){
-          try(profitEllipsePlot(Data=Data,add_pseudo_bulge(optimModellist),pixscale=pixScale,SBlim=25))
+          try(profitEllipsePlot(Data=Data,add_pseudo_bulge(optimModellist),pixscale=pixScale,SBlim=25,FWHM=1.4))
         }else if (nComps == 2){
-          try(profitEllipsePlot(Data=Data,optimModellist,pixscale=pixScale,SBlim=25))
+          try(profitEllipsePlot(Data=Data,optimModellist,pixscale=pixScale,SBlim=25,FWHM=1.4,raw=FALSE))
         }
         dev.off()
       
       }
+      
+      ### Calculate the chi^2 statistics
+      chisq = calc_chisq(image, optimImage, sigma, segMap)
+      
+      ### The stationarity of the optimisation:
+      # is stationary = 1; not stationary = 0
+      stationarity = if (any(is.na(LDFit$Summary2))) 0 else 1
+      
       
       ###########################
       #####  WRITE OUTPUTS  #####
@@ -1027,7 +1054,7 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat("INFO: Writing outputs to file.\n")}
       if(output && outputResults){
         outputFilename = paste(baseFilename,"_Output.csv",sep='')
-        write_output(file=paste(outputDir,outputFilename,sep='/'),name=galName,nComps=nComps,init=modellist$sersic,optim=optimModellist$sersic,chisq=chisq,time=elapsedTime)
+        write_output(file=paste(outputDir,outputFilename,sep='/'),name=galName,nComps=nComps,init=modellist$sersic,optim=optimModellist$sersic,chisq=chisq,time=elapsedTime,stat=stationarity)
       }
       
       ###################################################################
@@ -1093,9 +1120,9 @@ for (galName in galList){ # loop through galaxies
         cat("\n\n>> Intervals:\n")
         print(intervals$sersic)
         
-        if(improveInits==TRUE){
+        if(improveInits==TRUE && is.null(inheritFrom)){
           cat("\n\n>> Attempted Improvements on Initial Guesses:\n")
-          if(isoConverge==TRUE){
+          if(isoValid==TRUE){
             cat("Isophotal 1D fitting successful\n")
             cat("Fitting solutions:\n")
             for (ii in seq(length(convParams))){
@@ -1106,8 +1133,8 @@ for (galName in galList){ # loop through galaxies
             cat("Isophotal 1D fitting not succesful\n")
           }
           
-          if(isoConverge==FALSE){
-            if(LAConverge==TRUE) {cat("\nLaplaceApproximation() 2D fitting successful\n")}
+          if(isoValid==FALSE){
+            if(LAValid==TRUE) {cat("\nLaplaceApproximation() 2D fitting successful\n")}
             else {cat("\nLaplaceApproximation() 2D fitting not successful\n")}
             cat("Fitting solutions:\n")
             for (ii in seq(length(LAFit$Summary1[,1]))){
@@ -1125,8 +1152,7 @@ for (galName in galList){ # loop through galaxies
         print(optimModellist$sersic)
         
         cat(paste("\n chi^2 = ",sprintf("%.3f", chisq),"\n", sep=""))
-        
-        cat(paste("\n chi^2 = ",sprintf("%.3f", chisq),"\n", sep=""))
+        cat(paste("\n Stationarity = ",if (stationarity == 1) "TRUE" else "FALSE", sep=""))
         
         cat("\n\n>> Flags:\n")
         # Check if optimised parameters are stuck to interval bounds
