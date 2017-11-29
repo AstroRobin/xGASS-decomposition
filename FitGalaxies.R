@@ -182,7 +182,7 @@ add_pseudo_bulge = function(model) # Add a zero-point magnitude bulge to the mod
   return(pseudo)
 }
 
-get_gal_list = function(galFile, lineNum) # Given the path to a file, extract the galaxy list at a particular line(s)
+get_gal_list = function(galFile, lineNum=0) # Given the path to a file, extract the galaxy list at a particular line(s)
 {
   # <param: galFile [string]> - The path to the file containing the galaxy list(s)
   # <param: lineNum [int]> - The line number at which to extract the list(s) (lineNum = 0 for all lines)
@@ -516,9 +516,10 @@ for (galName in galList){ # loop through galaxies
         sigma = profoundMakeSigma(image,sky=0.0,skyRMS=skyRMS,objects=segmentation$objects,gain=gain,plot=FALSE)
       }
       
-      ###############################
-      #####   Plot Input Data   #####
-      ###############################
+      
+      ######################################
+      #####   Plot & Save Input Data   #####
+      ######################################
       if (output && outputInputs){
         inputsFilename = paste(baseFilename,"_Inputs.png",sep='')
         png(paste(outputDir,inputsFilename,sep='/'),width=750,height=750,pointsize=16)
@@ -528,6 +529,25 @@ for (galName in galList){ # loop through galaxies
         magimage(sigma,axes=F,bad=0); text(0.1*dim(image)[1],0.925*dim(image)[2],"Sigma",pos=4,col='white',cex= 1.75)
         magimage(psf,axes=F,bad=0); text(0.1*dim(psf)[1],0.925*dim(psf)[2],"PSF",pos=4,col='white',cex= 1.75)
         dev.off()
+      }
+      
+      # Save inputs if save[*] is True and not already a loaded input.
+      if (savePSF && !loadPSF){ # PSF
+        if(verb){cat("INFO: Saving PSF.\n")}
+        psfOutFilename = paste(galName,"_",band,"_PSF.fits",sep="")
+        writeFITSim(psf, file = paste(galsDir,galName,band,psfOutFilename,sep='/'))
+      }
+      
+      if (saveSegMap && !loadSegMap){ # Segmentation Map
+        if(verb){cat("INFO: Saving segmentation map.\n")}
+        segOutFilename = paste(galName,"_",band,"_SegMap.fits",sep="")
+        writeFITSim(segmentation$segim, file = paste(galsDir,galName,band,segOutFilename,sep='/'))
+      }
+      
+      if (saveSigma && !loadSigma){ # Sigma Map
+        if(verb){cat("INFO: Saving sigma map.\n")}
+        sigmaOutFilename = paste(galName,"_",band,"_Sigma.fits",sep="")
+        writeFITSim(sigma, file = paste(galsDir,galName,band,sigmaOutFilename,sep='/'))
       }
       
       
