@@ -230,7 +230,7 @@ def main():
 						action='store',dest='runs',nargs='+',default=[''],
 						help="A list of different runs of ",metavar="RUN")
 	parser.add_argument('-d','--displays',
-						action='store',dest='displays',type=str,nargs='*',choices=["Inputs","EllipseInitial","EllipseOptimised","LikelihoodInitial","LikelihoodOptimised","ModelInitial","ModelOptimised","ChiSquaredInitial","ChiSquaredOptimised","SkyStats","CornerPlot"],default=["Inputs","LikelihoodOptimised","EllipseOptimised"],
+						action='store',dest='displays',type=str,nargs='*',choices=["Inputs","EllipseInitial","EllipseOptimised","LikelihoodInitial","LikelihoodOptimised","ModelInitial","ModelOptimised","ChiSquaredInitial","ChiSquaredOptimised","SkyStats","CornerPlot"],default=["Inputs","LikelihoodOptimised","EllipseOptimised","SegMap","Sigma"],
 						help="The types of plots to be displayed given as a list of filename extensions (choices = Inputs EllipseInitial EllipseOptimised LikelihoodInitial LikelihoodOptimised ModelInitial ModelOptimised ChiSquaredInitial ChiSquaredOptimised SkyStats CornerPlot).",metavar="EXTENSION")
 	parser.add_argument('-j','--judge',
 						action='store',dest='judge',type=str,default=None,
@@ -330,6 +330,9 @@ def main():
 		elif ("SkyStats" in disp): colNames[disp] = "Sky Statistics"
 		elif ("ChiSquaredOptimised" in disp): colNames[disp] = "Optimised &#967<sup>2</sup> Likelihood Plot"
 		elif ("CornerPlot" in disp): colNames[disp] = "MCMC Posterior Distributions"
+		elif ("SegMap" in disp): colNames[disp] = "Segmentation Map"
+		elif ("Sigma" in disp): colNames[disp] = "Sigma Map"
+		elif ("PSF" in disp): colNames[disp] = "PSF"
 		else: colNames[disp] = disp
 
 

@@ -121,19 +121,20 @@ divide_magnitude = function(magTot,frac=0.5) # Function to divide a magnitude by
   return(c(mag1,mag2))
 }
 
-find_main = function(sourceList,dims) # function to find the main (central) source ID in the image
+find_main = function(seg) # Determine the main (central) source ID in the image
 {
-  # <param: sourceList [list]> - The list of sources found in profitMakeSegIm().
-  # <param: dims [array (float, 2)]> - The x and y dimensions of the image.
+  # <param: seg [list]> - The segmentation object.
+  
   # <return: mainID [int]> - The ID for the main (centremost) source.
   
-  nSources = length(sourceList$segID) # get number of sources.
+  nSources = length(seg$segstats$segID) # get number of sources.
   
+  dims = dim(seg$segim)
   x0 = dims[1]/2; y0 = dims[2]/2 # image centre position.
   sepArr = array(0,dim=nSources) # empty separation array
   
   # Calculate separation of source centres.
-  for (ii in seq(1,nSources)) {sepArr[ii] = sqrt( (sourceList$xcen[ii] - x0)^2 + (sourceList$ycen[ii] - y0)^2 )}
+  for (ii in seq(1,nSources)) {sepArr[ii] = sqrt( (seg$segstats$xcen[ii] - x0)^2 + (seg$segstats$ycen[ii] - y0)^2 )}
   mainID = which.min(sepArr) # The main source is the one with the smallest separation from the centre
   return(mainID)
 }
@@ -374,7 +375,11 @@ for (galName in galList){ # loop through galaxies
                                     stats=FALSE, rotstats=FALSE, boundstats=FALSE, plot=FALSE)
       
       if(verb){cat("INFO: Expanding sky mask.\n")} # Expanding the sky mask further with dilation
-      skyMapExp = profoundMakeSegimDilate(image0, segim=skyMap0$segim, tolerance=5, size=15, skycut=0.0, sky=skyMap0$sky, skyRMS=skyMap0$skyRMS,
+      skyMapExp = profoundMakeSegimExpand(image0, segim=skyMap0$segim, tolerance=5, sigma=2.5, skycut=-1.0, sky=skyMap0$sky, skyRMS=skyMap0$skyRMS,
+                                          magzero=zeroPoint, gain=gain, pixscale=pixScale,# header=header,
+                                          stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
+      
+      skyMapExp = profoundMakeSegimDilate(image0, segim=skyMapExp$segim, tolerance=5, size=15, sky=skyMap0$sky, skyRMS=skyMap0$skyRMS,
                                           magzero=zeroPoint, gain=gain, pixscale=pixScale,# header=header,
                                           stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
       
@@ -394,9 +399,12 @@ for (galName in galList){ # loop through galaxies
       skyStats = capture.output(maghist(skyMap$sky,plot=FALSE))
       
       # Subtract the background sky
-      if(verb){cat("INFO: Subtracting background sky from image.\n")}
-      image = if (skyAsGrid) (image0 - skyMap$sky) else (image0 - skyVal)
-      
+      if (subSky){
+        if(verb){cat("INFO: Subtracting background sky from image.\n")}
+        image = if (skyAsGrid) (image0 - skyMap$sky) else (image0 - skyVal)
+      } else {
+        image = image0
+      }
       
       ### Plot input images ###
       if (output && outputSkyStats){
@@ -430,7 +438,7 @@ for (galName in galList){ # loop through galaxies
         
         # Find the main (central) source
         if(verb){cat("INFO: Finding central source.\n")}
-        mainID = find_main(segmentation$segstats,dims) # The main source is the one with the smallest separation from the centre
+        mainID = find_main(segmentation) # The main source is the one with the smallest separation from the centre
         
         segmentation$objects = segmentation$segim
         segmentation$objects[segmentation$objects!=0] = 1
@@ -449,12 +457,12 @@ for (galName in galList){ # loop through galaxies
         
         # Find the main (central) source
         if(verb){cat("INFO: Finding central source.\n")}
-        mainID = find_main(segmentation0$segstats,dims) # The main source is the one with the smallest separation from the centre
+        mainID = find_main(segmentation0) # The main source is the one with the smallest separation from the centre
         
         # @Robin Cook: Expand Segmentation image
         if(verb){cat("INFO: Expanding target segment.\n")}
         segmentationExp = profoundMakeSegimExpand(image=image, segim=segmentation0$segim, expand=mainID, skycut=expSkyCut, sigma=expSigma,
-                                                    sky=0.0,skyRMS=skyMap$skyRMS,
+                                                    if (subSky) 0.0 else skyEst$sky,skyRMS=skyMap$skyRMS,
                                                     magzero=zeroPoint, gain=gain, #header=header,
                                                     stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
         
@@ -477,6 +485,8 @@ for (galName in galList){ # loop through galaxies
         # Total extra pixels added to the segmenation map
         numPixExpand = length(segmentation$objects[segmentation$objects != 0]) - length(segmentation0$objects[segmentation0$objects != 0])
       }
+      
+      mainID = find_main(segmentation)
       
       
       # Save segmentation stats to file
@@ -503,7 +513,7 @@ for (galName in galList){ # loop through galaxies
         if (!file.exists(sigmaFile)){cat(paste("\nWARNING: \"",sigmaFile,"\" does not exist! Making sigma map from image instead.\n",sep=""))}
       }
       
-      if (loadSegMap == TRUE && file.exists(sigmaFile)){
+      if (loadSigma == TRUE && file.exists(sigmaFile)){
         if(verb){cat("INFO: Loading sigma map.\n")}
         
         # Read in the sigma image
@@ -513,7 +523,7 @@ for (galName in galList){ # loop through galaxies
         
         # > sky level is defined as 0.0 as sky has already been subtracted.
         # > sigma map reflects the original image, however, sky pixels are set to a fixed uncertainty and object pixels have additional shot noise.
-        sigma = profoundMakeSigma(image,sky=0.0,skyRMS=skyRMS,objects=segmentation$objects,gain=gain,plot=FALSE)
+        sigma = profoundMakeSigma(image,sky=if (subSky) 0.0 else skyEst$sky,skyRMS=skyEst$skyRMS,objects=segmentation$objects,gain=gain,plot=FALSE)
       }
       
       
@@ -796,11 +806,19 @@ for (galName in galList){ # loop through galaxies
       
       } # END Double Sersic
     
+      if (subSky == FALSE){ # If sky was not subtracted, add a sky level to the modellist
+        if(verb){cat("INFO: Adding sky component to model.\n")}
+        modellist$sky = list(bg=skyEst$sky)
+        tofit$sky = list(bg=TRUE)
+        tolog$sky = list(bg=FALSE)
+      }
+      
       
       ### Setup Data ###
       if(verb){cat("INFO: Setting up Data object.\n")}
-      Data = profitSetupData(image=image,sigma=sigma,modellist=modellist,tofit=tofit,tolog=tolog,intervals=intervals, priors = if (usePriors) priors else NULL,
-                             psf=psf, magzero=zeroPoint,segim=segMap, algo.func=fitMode,like.func=likeFunction,verbose=FALSE)
+      Data = profitSetupData(image=image, psf=psf, segim=segMap, sigma=sigma,
+                             modellist=modellist, tofit=tofit, tolog=tolog, intervals=intervals, priors = if (usePriors) priors else NULL,
+                             magzero=zeroPoint, algo.func=fitMode, like.func=likeFunction, verbose=FALSE)
       
       
       ### Plot Input Model Likelihood ###
@@ -1154,9 +1172,9 @@ for (galName in galList){ # loop through galaxies
         cat(paste("Image: ",imgFile,"\n",sep=""))
         cat(paste(" Dimensions: ",dims[1]," x ",dims[2]," (",dims[1]*pixScale/60.0,"' x ",dims[1]*pixScale/60.0,"')","\n",sep=""))
         cat(paste(" Padding: ",padded,"\n",sep=""))
-        if (loadPSF){ cat(paste("PSF: ",psfFile,"\n",sep=""))}
-        if (loadSegMap){ cat(paste("Segmentation map: ",segMapFile,"\n",sep=""))}
-        if (loadSigma){ cat(paste("Sigma map: ",sigmaFile,"\n",sep=""))}
+        if (loadPSF && file.exists(psfFile)){ cat(paste("PSF: ",psfFile,"\n",sep=""))}
+        if (loadSegMap && file.exists(segMapFile)){ cat(paste("Segmentation map: ",segMapFile,"\n",sep=""))}
+        if (loadSigma && file.exists(sigmaFile)){ cat(paste("Sigma map: ",sigmaFile,"\n",sep=""))}
         cat(paste("\nZero point: ",zeroPoint,"\n",sep=""))
         cat(paste("gain: ",gain,"\n",sep=""))
         if (dataSource == "SDSS") {cat(paste("Soft-bias: ",softBias,"\n",sep=""))}
@@ -1220,6 +1238,7 @@ for (galName in galList){ # loop through galaxies
         
         cat("\n\n>> Output Model:\n")
         print(optimModellist$sersic)
+        if (subSky == FALSE) {print(optimModellist$sky)}
         
         cat(paste("\n chi^2 = ",sprintf("%.3f", chisq),"\n", sep=""))
         cat(paste("\n Stationarity = ",if (stationarity == 1) "TRUE" else "FALSE", sep=""))
