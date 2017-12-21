@@ -121,7 +121,26 @@ divide_magnitude = function(magTot,frac=0.5) # Function to divide a magnitude by
   return(c(mag1,mag2))
 }
 
-find_main = function(seg) # Determine the main (central) source ID in the image
+find_main_index = function(seg) # Determine the main (central) source list index in the image
+{
+  # <param: seg [list]> - The segmentation object.
+  
+  # <return: mainIndex [int]> - The index for the main (centremost) source.
+  
+  nSources = length(seg$segstats$segID) # get number of sources.
+  
+  dims = dim(seg$segim)
+  x0 = dims[1]/2; y0 = dims[2]/2 # image centre position.
+  sepArr = array(0,dim=nSources) # empty separation array
+  
+  # Calculate separation of source centres.
+  for (ii in seq(1,nSources)) {sepArr[ii] = sqrt( (seg$segstats$xcen[ii] - x0)^2 + (seg$segstats$ycen[ii] - y0)^2 )}
+  mainIndex = which.min(sepArr) # The main source is the one with the smallest separation from the centre
+  return(mainIndex)
+}
+
+
+find_main_ID = function(seg) # Determine the main (central) source ID in the image
 {
   # <param: seg [list]> - The segmentation object.
   
@@ -135,9 +154,12 @@ find_main = function(seg) # Determine the main (central) source ID in the image
   
   # Calculate separation of source centres.
   for (ii in seq(1,nSources)) {sepArr[ii] = sqrt( (seg$segstats$xcen[ii] - x0)^2 + (seg$segstats$ycen[ii] - y0)^2 )}
-  mainID = which.min(sepArr) # The main source is the one with the smallest separation from the centre
+  mainIndex = which.min(sepArr) # The main source is the one with the smallest separation from the centre
+  mainID = seg$segstats$segID[mainIndex]
+  
   return(mainID)
 }
+
 
 write_output = function(file, name, nComps, init, optim, chisq, time, stat){ # Write optimisation result to file
   # <param: file [str]> - The file to append the results to.
@@ -193,7 +215,7 @@ get_gal_list = function(galFile, lineNum=0) # Given the path to a file, extract 
   # Check whether galFile exists
   if (!file.exists(galFile)){
     cat(paste("ERROR: The input galFile: '",galFile,"' does not exist!\n -- ABORTING --\n",sep=""))
-    quit(status=1)
+    return(c())
   }
   
   # Read the galaxy lists (one list per line)
@@ -253,7 +275,7 @@ if (length(args) > 1) { # Line number has been specified in comman-line argument
 if (galFile == "") { # galaxy file not given in .conf file; using galList instead.
   if (length(galNames) == 0){
     cat("WARNING: No 'galFile' or 'galList' specified.\n  -- ABORTING --\n")
-    quit(status=1)
+    galList = c()
   }
   
   galList = galNames
@@ -308,7 +330,7 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
       
       ### INPUTS ### *otherwise taken from .conf file
-      # galName = "GASS16655"
+      # galName = "GASS109005"
       # band = "r"
       # nComps = 2
       
@@ -436,15 +458,11 @@ for (galName in galList){ # loop through galaxies
         # Read in the segmentation image
         segmentation$segim = readFITS(segMapFile)$imDat
         
-        # Find the main (central) source
-        if(verb){cat("INFO: Finding central source.\n")}
-        mainID = find_main(segmentation) # The main source is the one with the smallest separation from the centre
-        
         segmentation$objects = segmentation$segim
         segmentation$objects[segmentation$objects!=0] = 1
         
         # Measure segmentation stats for the segmentation image
-        segmentation$segstats =  profoundSegimStats(image, segmentation$segim, magzero=zeroPoint, gain=gain, rotstats=TRUE, boundstats=TRUE)
+        segmentation$segstats =  profoundSegimStats(image, segmentation$segim, magzero=zeroPoint, gain=gain, pixscale=pixScale, rotstats=TRUE, boundstats=TRUE)
         
       } else { # Create a new segmentation image.
       
@@ -453,18 +471,18 @@ for (galName in galList){ # loop through galaxies
         # @Robin Cook: Extract sources
         segmentation0 = profoundProFound(image, sigma=segSigma, skycut=segSkyCut, tolerance=segTol, ext=segExt,
                                         magzero=zeroPoint, gain=gain, #header=header,
-                                        stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
+                                        stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
         
         # Find the main (central) source
         if(verb){cat("INFO: Finding central source.\n")}
-        mainID = find_main(segmentation0) # The main source is the one with the smallest separation from the centre
+        mainID = find_main_ID(segmentation0) # The main source is the one with the smallest separation from the centre
         
         # @Robin Cook: Expand Segmentation image
         if(verb){cat("INFO: Expanding target segment.\n")}
         segmentationExp = profoundMakeSegimExpand(image=image, segim=segmentation0$segim, expand=mainID, skycut=expSkyCut, sigma=expSigma,
-                                                    if (subSky) 0.0 else skyEst$sky,skyRMS=skyMap$skyRMS,
+                                                    sky = if (subSky) 0.0 else skyEst$sky, skyRMS=skyMap$skyRMS,
                                                     magzero=zeroPoint, gain=gain, #header=header,
-                                                    stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
+                                                    stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
         
         # @Robin Cook: Dilate Segmentation image
         
@@ -486,7 +504,10 @@ for (galName in galList){ # loop through galaxies
         numPixExpand = length(segmentation$objects[segmentation$objects != 0]) - length(segmentation0$objects[segmentation0$objects != 0])
       }
       
-      mainID = find_main(segmentation)
+      # Find the main (central) source
+      if(verb){cat("INFO: Finding central source.\n")}
+      mainID = find_main_ID(segmentation) # The main source is the one with the smallest separation from the centre
+      mainIndex = find_main_index(segmentation)
       
       
       # Save segmentation stats to file
@@ -569,22 +590,22 @@ for (galName in galList){ # loop through galaxies
       # Rough Initial model from segmentation objects
       inits = segmentation$segstats
       if (nComps == 2){
-        xcenInits = rep(inits$xcen[mainID],2)
-        ycenInits = rep(inits$ycen[mainID],2)
-        magInits = divide_magnitude(inits$mag[mainID],frac=bulgeFrac)
-        reInits = c(inits$semimaj[mainID]*1/3,inits$semimaj[mainID]*1)
-        nSerInits = c(if (nFromCon) get_nser(inits$con[mainID]) else 4, 1) # Bulge: n = 4 (de Vaucouleurs); Disk: n = 1 (Exponential)
-        angInits = rep(inits$ang[mainID],2)
-        axratInits = c(1,inits$axrat[mainID]) # Bulge is initially at axrat=1
+        xcenInits = rep(inits$xcen[mainIndex],2)
+        ycenInits = rep(inits$ycen[mainIndex],2)
+        magInits = divide_magnitude(inits$mag[mainIndex],frac=bulgeFrac)
+        reInits = c(inits$semimaj[mainIndex]*1/3,inits$semimaj[mainIndex]*1)
+        nSerInits = c(if (nFromCon) get_nser(inits$con[mainIndex]) else 4, 1) # Bulge: n = 4 (de Vaucouleurs); Disk: n = 1 (Exponential)
+        angInits = rep(inits$ang[mainIndex],2)
+        axratInits = c(1,inits$axrat[mainIndex]) # Bulge is initially at axrat=1
         boxInits = rep(0,2)
       } else {
-        xcenInits = c(inits$xcen[mainID])
-        ycenInits = c(inits$ycen[mainID])
-        magInits = c(inits$mag[mainID])
-        reInits = c(inits$semimaj[mainID]*1.0)
-        nSerInits = if (nFromCon) c(get_nser(inits$con[mainID])) else c(4)
-        angInits = c(inits$ang[mainID])
-        axratInits = c(inits$axrat[mainID])
+        xcenInits = c(inits$xcen[mainIndex])
+        ycenInits = c(inits$ycen[mainIndex])
+        magInits = c(inits$mag[mainIndex])
+        reInits = c(inits$semimaj[mainIndex]*1.0)
+        nSerInits = if (nFromCon) c(get_nser(inits$con[mainIndex])) else c(4)
+        angInits = c(inits$ang[mainIndex])
+        axratInits = c(inits$axrat[mainIndex])
         boxInits = c(0)
       }
       
@@ -714,8 +735,8 @@ for (galName in galList){ # loop through galaxies
         # The hard intervals should also be specified in linear space.
         intervals=list(
           sersic=list(
-            xcen=list(lim=c(inits$xcen[mainID]-10,inits$xcen[mainID]+10)),
-            ycen=list(lim=c(inits$ycen[mainID]-10,inits$ycen[mainID]+10)),
+            xcen=list(lim=c(inits$xcen[mainIndex]-10,inits$xcen[mainIndex]+10)),
+            ycen=list(lim=c(inits$ycen[mainIndex]-10,inits$ycen[mainIndex]+10)),
             mag=list(lim=c(7,zeroPoint)),
             re=list(lim=c(0.25,100)),
             nser=list(lim=c(0.25,20)),
@@ -730,13 +751,13 @@ for (galName in galList){ # loop through galaxies
         ## DOUBLE SERSIC PROFILE ##
         # modellist = list(
         #   sersic=list(
-        #     xcen= c(inits$xcen[mainID],inits$xcen[mainID]),
-        #     ycen= c(inits$ycen[mainID],inits$ycen[mainID]),
+        #     xcen= c(inits$xcen[mainIndex],inits$xcen[mainIndex]),
+        #     ycen= c(inits$ycen[mainIndex],inits$ycen[mainIndex]),
         #     mag = magInits,
         #     re=   reInits,
         #     nser= nSerInits,
-        #     ang=  c(inits$ang[mainID],inits$ang[mainID]),
-        #     axrat=c(1,inits$axrat[mainID]), # Bulge is initially at axrat=1
+        #     ang=  c(inits$ang[mainIndex],inits$ang[mainIndex]),
+        #     axrat=c(1,inits$axrat[mainIndex]), # Bulge is initially at axrat=1
         #     box=c(0,0) # no boxiness
         #   )
         # )
@@ -793,8 +814,8 @@ for (galName in galList){ # loop through galaxies
         # The hard intervals should also be specified in linear space.
         intervals=list(
           sersic=list(
-            xcen=list(lim=c(inits$xcen[mainID]-10,inits$xcen[mainID]+10),lim=c(inits$xcen[mainID]-10,inits$xcen[mainID]+10)),
-            ycen=list(lim=c(inits$ycen[mainID]-10,inits$ycen[mainID]+10),lim=c(inits$ycen[mainID]-10,inits$ycen[mainID]+10)),
+            xcen=list(lim=c(inits$xcen[mainIndex]-10,inits$xcen[mainIndex]+10),lim=c(inits$xcen[mainIndex]-10,inits$xcen[mainIndex]+10)),
+            ycen=list(lim=c(inits$ycen[mainIndex]-10,inits$ycen[mainIndex]+10),lim=c(inits$ycen[mainIndex]-10,inits$ycen[mainIndex]+10)),
             mag=list(lim=c(10,25),lim=c(10,25)),
             re=list(lim=c(0.25,100),lim=c(0.25,100)),
             nser=list(lim=c(1.25,20.0),lim=c(0.5,1.5)),
@@ -1184,9 +1205,10 @@ for (galName in galList){ # loop through galaxies
         
         cat("\n\n>> Segmentation:\n")
         cat(paste("Num. Objects: ",length(segmentation$segstats[[1]]),"\n",sep=""))
-        cat(paste("MainID: ",mainID,"\n",sep=""))
+        cat(paste("Main Segment ID: ",mainID,"\n",sep=""))
+        cat(paste("Main Segment index: ",mainIndex,"\n",sep=""))
         cat("\n Stats for target object:\n")
-        print(segmentation$segstats[mainID,])
+        print(segmentation$segstats[mainIndex,])
         
         if (!loadSegMap){ cat(paste("Num. expanded pixels in segment: ",numPixExpand,"\n",sep=""))}
         
@@ -1252,10 +1274,10 @@ for (galName in galList){ # loop through galaxies
             }
           }
         }
-        if(segmentation$segstats[mainID,]$edge_frac < 0.7){cat(paste('\n - Segmentation boundary = ',segmentation$segstats[mainID,]$edge_frac,'\n',sep=''))}
-        if(segmentation$segstats[mainID,]$edge_excess > 1.0){cat(paste('\n - Segmentation edge excess = ',segmentation$segstats[mainID,]$edge_excess,'\n',sep=''))}
-        if(segmentation$segstats[mainID,]$asymm > 0.2){cat(paste('\n - Segmentation asymmetry = ',segmentation$segstats[mainID,]$asymm,'\n',sep=''))}
-        if(segmentation$segstats[mainID,]$flag_border != 0){cat(paste('\n - Segmentation borders with: ',segmentation$segstats[mainID,]$flag_border,'\n',sep=''))}
+        if(segmentation$segstats[mainIndex,]$edge_frac < 0.7){cat(paste('\n - Segmentation boundary = ',segmentation$segstats[mainIndex,]$edge_frac,'\n',sep=''))}
+        if(segmentation$segstats[mainIndex,]$edge_excess > 1.0){cat(paste('\n - Segmentation edge excess = ',segmentation$segstats[mainIndex,]$edge_excess,'\n',sep=''))}
+        if(segmentation$segstats[mainIndex,]$asymm > 0.2){cat(paste('\n - Segmentation asymmetry = ',segmentation$segstats[mainIndex,]$asymm,'\n',sep=''))}
+        if(segmentation$segstats[mainIndex,]$flag_border != 0){cat(paste('\n - Segmentation borders with: ',segmentation$segstats[mainIndex,]$flag_border,'\n',sep=''))}
         
         sink()
       }
