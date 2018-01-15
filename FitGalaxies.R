@@ -72,10 +72,48 @@ inc_gamma = function(a,x){ # Calculates the incomplete gamma function \gamma(a,x
   return(pgamma(x, a) * gamma(a))
 }
 
+
 calc_conc = function(n,alpha=1/3){ # Calculates the concentration index for a given Sersic index, n (based upon equations given in Graham & Driver 2005)
   b = qgamma(0.5,2*n)
   return( inc_gamma(2*n, b*alpha^(1/n)) / inc_gamma(2*n,b) )
 }
+
+
+log_seq = function(from=1, to=1, len=50) { # logarithmically spaced sequence
+  exp(seq(log(from), log(to), length.out = len))
+}
+
+
+calc_bn = function(n){ # Calculates the b_n integration constant for the Sersic profile.
+  # <param: n (float)> - The Sersic index.
+  # <return: bn> - The b_n integration constant.
+  
+  return( qgamma(0.5,2*n) )
+}
+
+
+calc_fn = function(n){ # a function of the Sersic profile
+  # <param: n (float)> - The Sersic index.
+  
+  # <return: fn (float)> - the Sersic function integration constant.
+  
+  bn = calc_bn(n)
+  fn = (n*exp(bn))/(bn^(2.0*n)) * 2.0*inc_gamma(2.0*n,bn)
+  
+  return(fn)
+}
+
+
+calc_x = function(n,re,r){ # Calculates the x value substitution of the Sersic profile
+  # <param: n (float)> - The Sersic index.
+  # <param: re (float)> - The effective radius.
+  # <param: r (float)> - The radius with which to integrate until.
+  
+  # <return: x (float)>
+  
+  return ( calc_bn(n) * (r/re)^(1.0/n) )
+}
+
 
 get_nser = function(c,nMin=0.5,nMax=15.0){ # Given a concentration index, calculate the Sersic index with which
   # <param: c [float]> - The measured concentration index for the galaxy (R50/R90)
@@ -97,6 +135,7 @@ get_nser = function(c,nMin=0.5,nMax=15.0){ # Given a concentration index, calcul
   return(n)
 }
 
+
 get_B2T = function(n,nMax=20.0){ # Given a Sersic index from a single component fit, calculate an estimate for the Bulge/Total ration
   # <param: n [float]> - The single component Sersic index
   # <param: nMax [float]> - The maximum Sersic index (defined such that B2T = 0.9 @ nMax).
@@ -108,10 +147,12 @@ get_B2T = function(n,nMax=20.0){ # Given a Sersic index from a single component 
   return(B2T)
 }
 
+
 divide_magnitude = function(magTot,frac=0.5) # Function to divide a magnitude by some fraction
 {
   # <param: magTot [float]> - The inital total magnitude of the source
   # <param: frac [float]> - The fraction by which to divide the magnitude.
+  
   # <return: mags [array (float, 2)]> - The divided magnitudes for the bulge and disk component.
   
   fluxTot = 10^(-0.4*magTot)
@@ -120,6 +161,25 @@ divide_magnitude = function(magTot,frac=0.5) # Function to divide a magnitude by
   
   return(c(mag1,mag2))
 }
+
+
+calc_B2T = function(mag1, mag2) # Given two magnitudes (bulge and disk), get the ratios of the their.
+{
+  # <param: mag1 [float]> - The magnitude of the first component ("bulge")
+  # <param: mag2 [float]> - The magnitude of the second component (disk)
+  
+  # <return: B2T [float]> - The bulge-to-total ratio of fluxes.
+  
+  # calculate fluxes
+  flux1 = 10^(-0.4*mag1)
+  flux2 = 10^(-0.4*mag2)
+  
+  # get bulge-to-total ratio
+  B2T = flux1/(flux1+flux2)
+  
+  return(B2T)
+}
+
 
 find_main_index = function(seg) # Determine the main (central) source list index in the image
 {
@@ -159,6 +219,64 @@ find_main_ID = function(seg) # Determine the main (central) source ID in the ima
   
   return(mainID)
 }
+
+
+calc_ave_SB = function(mag,re,pixScale=1.0){ # Calculates the average surface brightness within an effective radius.
+  # <param: mag [float]> - the total magnitude of the model.
+  # <param: re [float]> - the effective radius of the model.
+  # <param: pixScale [float]> - The pixel scale (arcsec/pixel).
+  
+  # <return: aveSB [float]> - the average surface brightness within an effective radius (mag/arcsec^2)
+  
+  aveSB = mag + 2.5*log10(2*pi*(re*pixScale)^2)
+  
+  return(aveSB)
+}
+
+
+calc_SB = function(aveSB, n){ # Calculates the surface brightness at the effective radius numerically via the Sersic profile
+  # <param: aveSB [float]> - The average surface brightness within an effective radius (mag/arcsec^2).
+  # <param: n [float]> - The Sersic index.
+  
+  # <return: SB [float]> The surface brightness at the effective radius (mag/arcsec^2).
+  
+  fn = calc_fn(n)
+  SB = aveSB + 2.5*log10(fn)
+  
+  return(SB)
+}
+
+
+calc_SB0 = function(SB, n){ # Calculates the central surface brightness
+  # <param: SB [float]> - The surface brightness at the effective radius
+  # <param: n [float]> - The Sersic index.
+  
+  # <return: SB0 [float]> - The central surface brightness.
+  
+  bn = calc_bn(n)
+  SB0 = SB - 2.5*bn/log(10)
+  
+  return(SB0)
+}
+
+
+truncate_mag = function(SB,re,n,rTrun,pixScale){ # Truncates the total magnitude of a galaxy to some specified radius.
+  # <param: SB (float)> - The surface brightness at the effective radius (mag/arcsec^2).
+  # <param: re (float)> - The effective radius (pixels).
+  # <param: n (float)> - The Sersic index.
+  # <param: rTrun (float)> - The truncation radius (pixels).
+  # <param: pixScale (float)> - The pixel scale (arcsec/pixel).
+  
+  # <return: magTrun (float)> - The truncated magnitude (mag/arcsec^2)
+  
+  bn = calc_bn(n)
+  x = calc_x(n, re, rTrun)
+  
+  mTrun = SB - 5.0*log10(re*pixScale) - 2.5*log10( 2.0*pi*n * (exp(bn))/(bn^(2.0*n)) * inc_gamma(2.0*n,x) )
+  
+  return(mTrun)
+}
+
 
 
 write_output = function(file, name, nComps, init, optim, chisq, time, stat){ # Write optimisation result to file
@@ -1144,6 +1262,20 @@ for (galName in galList){ # loop through galaxies
         dev.off()
       
       }
+      
+      rTrun = numTrun*optimModellist$sersic$re
+      
+      if (nComps == 2){ # Calculate the Bulge-to-total ratio
+        B2T = calc_B2T(optimModellist$sersic$mag[1],optimModellist$sersic$mag[2])
+      }
+      
+      # Calculate various surface brightness measures (mag/arcsec^2)
+      aveSBe = calc_ave_SB(mag = optimModellist$sersic$mag, re = optimModellist$sersic$re, pixScale = pixScale) # The average surf. brightness within the effective radius
+      SBe = calc_SB(aveSB = aveSBe, n = optimModellist$sersic$nser) # The surf. brightness at the effective radius
+      SB0 = calc_SB0(SB = SBe, n = optimModellist$sersic$nser) # The central surf. brightness
+      
+      # Calculate the magnitude of the model truncated at some radius.
+      magTrun = truncate_mag(SB=SBe, re=optimModellist$sersic$re, n=optimModellist$sersic$nser, rTrun = rTrun, pixScale = pixScale)
       
       ### Calculate the chi^2 statistics
       chisq = calc_chisq(image, optimImage, sigma, segMap)
