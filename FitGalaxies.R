@@ -72,48 +72,10 @@ inc_gamma = function(a,x){ # Calculates the incomplete gamma function \gamma(a,x
   return(pgamma(x, a) * gamma(a))
 }
 
-
 calc_conc = function(n,alpha=1/3){ # Calculates the concentration index for a given Sersic index, n (based upon equations given in Graham & Driver 2005)
   b = qgamma(0.5,2*n)
   return( inc_gamma(2*n, b*alpha^(1/n)) / inc_gamma(2*n,b) )
 }
-
-
-log_seq = function(from=1, to=1, len=50) { # logarithmically spaced sequence
-  exp(seq(log(from), log(to), length.out = len))
-}
-
-
-calc_bn = function(n){ # Calculates the b_n integration constant for the Sersic profile.
-  # <param: n (float)> - The Sersic index.
-  # <return: bn> - The b_n integration constant.
-  
-  return( qgamma(0.5,2*n) )
-}
-
-
-calc_fn = function(n){ # a function of the Sersic profile
-  # <param: n (float)> - The Sersic index.
-  
-  # <return: fn (float)> - the Sersic function integration constant.
-  
-  bn = calc_bn(n)
-  fn = (n*exp(bn))/(bn^(2.0*n)) * 2.0*inc_gamma(2.0*n,bn)
-  
-  return(fn)
-}
-
-
-calc_x = function(n,re,r){ # Calculates the x value substitution of the Sersic profile
-  # <param: n (float)> - The Sersic index.
-  # <param: re (float)> - The effective radius.
-  # <param: r (float)> - The radius with which to integrate until.
-  
-  # <return: x (float)>
-  
-  return ( calc_bn(n) * (r/re)^(1.0/n) )
-}
-
 
 get_nser = function(c,nMin=0.5,nMax=15.0){ # Given a concentration index, calculate the Sersic index with which
   # <param: c [float]> - The measured concentration index for the galaxy (R50/R90)
@@ -135,7 +97,6 @@ get_nser = function(c,nMin=0.5,nMax=15.0){ # Given a concentration index, calcul
   return(n)
 }
 
-
 get_B2T = function(n,nMax=20.0){ # Given a Sersic index from a single component fit, calculate an estimate for the Bulge/Total ration
   # <param: n [float]> - The single component Sersic index
   # <param: nMax [float]> - The maximum Sersic index (defined such that B2T = 0.9 @ nMax).
@@ -147,12 +108,10 @@ get_B2T = function(n,nMax=20.0){ # Given a Sersic index from a single component 
   return(B2T)
 }
 
-
 divide_magnitude = function(magTot,frac=0.5) # Function to divide a magnitude by some fraction
 {
   # <param: magTot [float]> - The inital total magnitude of the source
   # <param: frac [float]> - The fraction by which to divide the magnitude.
-  
   # <return: mags [array (float, 2)]> - The divided magnitudes for the bulge and disk component.
   
   fluxTot = 10^(-0.4*magTot)
@@ -161,25 +120,6 @@ divide_magnitude = function(magTot,frac=0.5) # Function to divide a magnitude by
   
   return(c(mag1,mag2))
 }
-
-
-calc_B2T = function(mag1, mag2) # Given two magnitudes (bulge and disk), get the ratios of the their.
-{
-  # <param: mag1 [float]> - The magnitude of the first component ("bulge")
-  # <param: mag2 [float]> - The magnitude of the second component (disk)
-  
-  # <return: B2T [float]> - The bulge-to-total ratio of fluxes.
-  
-  # calculate fluxes
-  flux1 = 10^(-0.4*mag1)
-  flux2 = 10^(-0.4*mag2)
-  
-  # get bulge-to-total ratio
-  B2T = flux1/(flux1+flux2)
-  
-  return(B2T)
-}
-
 
 find_main_index = function(seg) # Determine the main (central) source list index in the image
 {
@@ -219,64 +159,6 @@ find_main_ID = function(seg) # Determine the main (central) source ID in the ima
   
   return(mainID)
 }
-
-
-calc_ave_SB = function(mag,re,pixScale=1.0){ # Calculates the average surface brightness within an effective radius.
-  # <param: mag [float]> - the total magnitude of the model.
-  # <param: re [float]> - the effective radius of the model.
-  # <param: pixScale [float]> - The pixel scale (arcsec/pixel).
-  
-  # <return: aveSB [float]> - the average surface brightness within an effective radius (mag/arcsec^2)
-  
-  aveSB = mag + 2.5*log10(2*pi*(re*pixScale)^2)
-  
-  return(aveSB)
-}
-
-
-calc_SB = function(aveSB, n){ # Calculates the surface brightness at the effective radius numerically via the Sersic profile
-  # <param: aveSB [float]> - The average surface brightness within an effective radius (mag/arcsec^2).
-  # <param: n [float]> - The Sersic index.
-  
-  # <return: SB [float]> The surface brightness at the effective radius (mag/arcsec^2).
-  
-  fn = calc_fn(n)
-  SB = aveSB + 2.5*log10(fn)
-  
-  return(SB)
-}
-
-
-calc_SB0 = function(SB, n){ # Calculates the central surface brightness
-  # <param: SB [float]> - The surface brightness at the effective radius
-  # <param: n [float]> - The Sersic index.
-  
-  # <return: SB0 [float]> - The central surface brightness.
-  
-  bn = calc_bn(n)
-  SB0 = SB - 2.5*bn/log(10)
-  
-  return(SB0)
-}
-
-
-truncate_mag = function(SB,re,n,rTrun,pixScale){ # Truncates the total magnitude of a galaxy to some specified radius.
-  # <param: SB (float)> - The surface brightness at the effective radius (mag/arcsec^2).
-  # <param: re (float)> - The effective radius (pixels).
-  # <param: n (float)> - The Sersic index.
-  # <param: rTrun (float)> - The truncation radius (pixels).
-  # <param: pixScale (float)> - The pixel scale (arcsec/pixel).
-  
-  # <return: magTrun (float)> - The truncated magnitude (mag/arcsec^2)
-  
-  bn = calc_bn(n)
-  x = calc_x(n, re, rTrun)
-  
-  mTrun = SB - 5.0*log10(re*pixScale) - 2.5*log10( 2.0*pi*n * (exp(bn))/(bn^(2.0*n)) * inc_gamma(2.0*n,x) )
-  
-  return(mTrun)
-}
-
 
 
 write_output = function(file, name, nComps, init, optim, chisq, time, stat){ # Write optimisation result to file
@@ -448,7 +330,7 @@ for (galName in galList){ # loop through galaxies
       if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
       
       ### INPUTS ### *otherwise taken from .conf file
-      # galName = "GASS109005"
+      # galName = "GASS110076"
       # band = "r"
       # nComps = 2
       
@@ -788,20 +670,6 @@ for (galName in galList){ # loop through galaxies
       ####################################
       if(verb){cat("INFO: Defining ProFit inputs.\n")}
       if (nComps == 1){
-        ## SINGLE SERSIC PROFILE ##
-        # modellist = list(
-        #   sersic=list(
-        #     xcen= ycenInits,
-        #     ycen= xcenInits,
-        #     mag=  magInits,
-        #     re=   reInits,
-        #     nser= nSerInits,
-        #     ang=  angInits,
-        #     axrat=axratInits, # Bulge is initially at axrat=1
-        #     box=  boxInits # no boxiness
-        #   )
-        # )
-        
         modellist = modellist0
         
         # Parameters to fit
@@ -832,23 +700,25 @@ for (galName in galList){ # loop through galaxies
           )
         )
         
-        # Define the sigma values for priors object
-        sigmaArr = c(2,2,5,1,1,30,0.3,Inf)
-        
-        stdevs = list(
-          sersic = list(
-            xcen= c(sigmaArr[1]),
-            ycen= c(sigmaArr[2]),
-            mag= c(sigmaArr[3]),
-            re= c(sigmaArr[4]),
-            nser= c(sigmaArr[5]),
-            ang= c(sigmaArr[6]),
-            axrat= c(sigmaArr[7]),
-            box= c(sigmaArr[8])
+        # Define the priors object
+        if (usePriors){
+          stdevs = list(
+            sersic = list(
+              xcen= c(priorSigmas[1]),
+              ycen= c(priorSigmas[2]),
+              mag= c(priorSigmas[3]),
+              re= c(priorSigmas[4]),
+              nser= c(priorSigmas[5]),
+              ang= c(priorSigmas[6]),
+              axrat= c(priorSigmas[7]),
+              box= c(priorSigmas[8])
+            )
           )
-        )
-        
-        priors = profitMakePriors(modellist=modellist, sigmas=stdevs, tolog=tolog, tofit=tofit, allowflat = TRUE) # allowflat allows for flat priors (e.g. boxiness) where the log-likelihood will be computed as 0, rather than -Inf.
+          
+          priors = profitMakePriors(modellist=modellist, sigmas=stdevs, tolog=tolog, tofit=tofit, allowflat = TRUE) # allowflat allows for flat priors (e.g. boxiness) where the log-likelihood will be computed as 0, rather than -Inf.
+        } else {
+          priors = NULL
+        }
         
         # The hard intervals should also be specified in linear space.
         intervals=list(
@@ -864,22 +734,12 @@ for (galName in galList){ # loop through galaxies
           )
         )
         
+        ## Overwrite default intervals with any user defined intervals
+        # Update list items from A with those from B IF the item in B also exists in A (i.e. avoid adding new key names to list A)
+        intervals$sersic = modifyList(intervals$sersic, setIntervals1[names(setIntervals1) %in% names(intervals$sersic)])
+        
         # END Single Sersic 
       } else if (nComps == 2){
-        ## DOUBLE SERSIC PROFILE ##
-        # modellist = list(
-        #   sersic=list(
-        #     xcen= c(inits$xcen[mainIndex],inits$xcen[mainIndex]),
-        #     ycen= c(inits$ycen[mainIndex],inits$ycen[mainIndex]),
-        #     mag = magInits,
-        #     re=   reInits,
-        #     nser= nSerInits,
-        #     ang=  c(inits$ang[mainIndex],inits$ang[mainIndex]),
-        #     axrat=c(1,inits$axrat[mainIndex]), # Bulge is initially at axrat=1
-        #     box=c(0,0) # no boxiness
-        #   )
-        # )
-        
         modellist = modellist0
         
         # Parameters to fit
@@ -910,24 +770,25 @@ for (galName in galList){ # loop through galaxies
           )
         )
         
-        
-        # Define the sigmas object
-        sigmaArr = c(2,2,5,1,1,30,0.3,Inf)
-        
-        stdevs = list(
-          sersic = list(
-            xcen= c(sigmaArr[1],sigmaArr[1]),
-            ycen= c(sigmaArr[2],sigmaArr[2]),
-            mag= c(sigmaArr[3],sigmaArr[3]),
-            re= c(sigmaArr[4],sigmaArr[4]),
-            nser= c(sigmaArr[5],sigmaArr[5]),
-            ang= c(sigmaArr[6],sigmaArr[6]),
-            axrat= c(sigmaArr[7],sigmaArr[7]),
-            box= c(sigmaArr[8],sigmaArr[8])
+        # Define the priors object
+        if (usePriors){
+          stdevs = list(
+            sersic = list(
+              xcen= c(priorSigmas[1],priorSigmas[1]),
+              ycen= c(priorSigmas[2],priorSigmas[2]),
+              mag= c(priorSigmas[3],priorSigmas[3]),
+              re= c(priorSigmas[4],priorSigmas[4]),
+              nser= c(priorSigmas[5],priorSigmas[5]),
+              ang= c(priorSigmas[6],priorSigmas[6]),
+              axrat= c(priorSigmas[7],priorSigmas[7]),
+              box= c(priorSigmas[8],priorSigmas[8])
+            )
           )
-        )
-        
-        priors = profitMakePriors(modellist=modellist, sigmas=stdevs, tolog=tolog, tofit=tofit, allowflat = TRUE) # allowflat allows for flat priors (e.g. boxiness) where the log-likelihood will be computed as 0, rather than -Inf.
+          
+          priors = profitMakePriors(modellist=modellist, sigmas=stdevs, tolog=tolog, tofit=tofit, allowflat = TRUE) # allowflat allows for flat priors (e.g. boxiness) where the log-likelihood will be computed as 0, rather than -Inf.
+        } else {
+          priors = NULL
+        }
         
         # The hard intervals should also be specified in linear space.
         intervals=list(
@@ -942,6 +803,16 @@ for (galName in galList){ # loop through galaxies
             box=list(lim=c(-0.5,0.5),lim=c(-0.5,0.5)) 
           )
         )
+        
+        ## Overwrite default intervals with any user defined intervals
+        # Update list items from A with those from B IF the item in B also exists in A (i.e. avoid adding new key names to list A)
+        for (key in names(setIntervals2)){
+          if (key %in% names(intervals$sersic)){
+            intervals$sersic[key] = setIntervals2[key]
+          } else {
+            cat(paste("\nWARNING: '",key,"' is not a valid model parameter!\n",sep=""))
+          }
+        }
       
       } # END Double Sersic
     
@@ -956,28 +827,13 @@ for (galName in galList){ # loop through galaxies
       ### Setup Data ###
       if(verb){cat("INFO: Setting up Data object.\n")}
       Data = profitSetupData(image=image, psf=psf, segim=segMap, sigma=sigma,
-                             modellist=modellist, tofit=tofit, tolog=tolog, intervals=intervals, priors = if (usePriors) priors else NULL,
+                             modellist=modellist, tofit=tofit, tolog=tolog, intervals=intervals, priors=priors,
                              magzero=zeroPoint, algo.func=fitMode, like.func=likeFunction, verbose=FALSE)
       
-      
-      ### Plot Input Model Likelihood ###
-      if (output  && outputInitial){
-        initLikelihoodFilename = paste(baseFilename,"_LikelihoodInitial.png",sep='')
-        png(paste(outputDir,initLikelihoodFilename,sep='/'),width=1600,height=1000,pointsize=28)
-        profitLikeModel(parm=Data$init,Data=Data,makeplots=TRUE,plotchisq=TRUE)
-        dev.off()
-      
-        ### Plot Input Model Ellipse ###
-        initEllipseFilename = paste(baseFilename,"_EllipseInitial.png",sep='')
-        png(paste(outputDir,initEllipseFilename,sep='/'),width=1000,height=750,pointsize=20)
-        if (nComps == 1){
-          try(profitEllipsePlot(Data=Data,modellist=add_pseudo_bulge(modellist),pixscale=pixScale,SBlim=25))
-        } else if (nComps == 2){
-          try(profitEllipsePlot(Data=Data,modellist=modellist,pixscale=pixScale,SBlim=25))
-        }
-        dev.off()
+      ### Add constraints if given
+      if (!is.null(constraints)){
+        Data$constraints = constraints
       }
-      
       
       ##################################################
       #####   Improve Initial Guesses (Isophotal)  #####
@@ -1098,7 +954,7 @@ for (galName in galList){ # loop through galaxies
       ##############################################################
       
       # IF the result from 1D isophotal fitting did not converge THEN attempt a LaplaceApproximation() fit:
-      if (improveInits==TRUE && isoValid==FALSE && is.null(inheritFrom)) { # LaplaceApproximation LM fit
+      if (improveInits==TRUE && is.null(inheritFrom)) { # LaplaceApproximation LM fit
         if(verb){cat("INFO: Attempting to improve inital guess with LaplaceApproximation()\n")}
         Data$algo.func = "LA" # Change optimising algorithm
         LAFit = LaplaceApproximation(profitLikeModel,parm = Data$init, Data = Data, Iterations=1e3, Method = 'LM', CovEst='Identity', sir = FALSE)
@@ -1145,6 +1001,24 @@ for (galName in galList){ # loop through galaxies
       } else {
         LAValid = FALSE
       } # END LAFit optimisation
+      
+      ### Plot Input Model Likelihood ###
+      if (output  && outputInitial){
+        initLikelihoodFilename = paste(baseFilename,"_LikelihoodInitial.png",sep='')
+        png(paste(outputDir,initLikelihoodFilename,sep='/'),width=1600,height=1000,pointsize=28)
+        profitLikeModel(parm=Data$init,Data=Data,makeplots=TRUE,plotchisq=TRUE)
+        dev.off()
+        
+        ### Plot Input Model Ellipse ###
+        initEllipseFilename = paste(baseFilename,"_EllipseInitial.png",sep='')
+        png(paste(outputDir,initEllipseFilename,sep='/'),width=1000,height=750,pointsize=20)
+        if (nComps == 1){
+          try(profitEllipsePlot(Data=Data,modellist=add_pseudo_bulge(modellist),pixscale=pixScale,SBlim=25))
+        } else if (nComps == 2){
+          try(profitEllipsePlot(Data=Data,modellist=modellist,pixscale=pixScale,SBlim=25))
+        }
+        dev.off()
+      }
       
       #####################################
       #####   Optimise Model (MCMC)   #####
@@ -1203,9 +1077,9 @@ for (galName in galList){ # loop through galaxies
         }
       }
       
-      ##########################################
-      ###   Remake intial/optimised models   ###
-      ##########################################
+      ###########################################
+      ###   Remake initial/optimised models   ###
+      ###########################################
       
       Data$usecalcregion = FALSE # Turn usecalcregion off to produce model over entire image.
       
@@ -1262,20 +1136,6 @@ for (galName in galList){ # loop through galaxies
         dev.off()
       
       }
-      
-      rTrun = numTrun*optimModellist$sersic$re
-      
-      if (nComps == 2){ # Calculate the Bulge-to-total ratio
-        B2T = calc_B2T(optimModellist$sersic$mag[1],optimModellist$sersic$mag[2])
-      }
-      
-      # Calculate various surface brightness measures (mag/arcsec^2)
-      aveSBe = calc_ave_SB(mag = optimModellist$sersic$mag, re = optimModellist$sersic$re, pixScale = pixScale) # The average surf. brightness within the effective radius
-      SBe = calc_SB(aveSB = aveSBe, n = optimModellist$sersic$nser) # The surf. brightness at the effective radius
-      SB0 = calc_SB0(SB = SBe, n = optimModellist$sersic$nser) # The central surf. brightness
-      
-      # Calculate the magnitude of the model truncated at some radius.
-      magTrun = truncate_mag(SB=SBe, re=optimModellist$sersic$re, n=optimModellist$sersic$nser, rTrun = rTrun, pixScale = pixScale)
       
       ### Calculate the chi^2 statistics
       chisq = calc_chisq(image, optimImage, sigma, segMap)
