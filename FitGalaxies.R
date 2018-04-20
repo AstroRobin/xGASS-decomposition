@@ -64,6 +64,9 @@ library(FITSio) # .FITS file input/output
 library(LaplacesDemon,warn.conflicts=FALSE) # MCMC optimisation package
 
 
+### Deal with potential missing variables in .conf file from future updates
+if (!exists("toPlot")) {toPlot = FALSE}
+
 ###################################################################
 ######################### DEFINE FUNCTIONS ########################
 ###################################################################
@@ -332,7 +335,7 @@ for (galName in galList){ # loop through galaxies
       ### INPUTS ### *otherwise taken from .conf file
       # galName = "GASS110076"
       # band = "r"
-      # nComps = 2
+      # nComps = 1
       
       ### Create outputs folder ###
       if(verb){cat("INFO: Creating output directories.\n")}
@@ -394,7 +397,7 @@ for (galName in galList){ # loop through galaxies
       skyMap0 = profoundProFound(image0, skycut=1.0, tolerance=5, redosky=TRUE, redoskysize=21, pixcut=9,
                                     #box = c(dims[1]/10,dims[2]/10), grid = c(dims[1]/12,dims[2]/12),type='bicubic',
                                     magzero=zeroPoint, gain=gain, pixscale=pixScale, # header=header,
-                                    stats=FALSE, rotstats=FALSE, boundstats=FALSE, plot=FALSE)
+                                    stats=FALSE, rotstats=FALSE, boundstats=FALSE, plot=toPlot)
       
       if(verb){cat("INFO: Expanding sky mask.\n")} # Expanding the sky mask further with dilation
       skyMapExp = profoundMakeSegimExpand(image0, segim=skyMap0$segim, tolerance=5, sigma=2.5, skycut=-1.0, sky=skyMap0$sky, skyRMS=skyMap0$skyRMS,
@@ -409,7 +412,7 @@ for (galName in galList){ # loop through galaxies
       skyMap = profoundProFound(image0, segim = skyMapExp$segim,
                                  box = skyBoxDims, grid = skyBoxDims,type='bicubic',
                                  magzero=zeroPoint, gain=gain, pixscale=pixScale, # header=header,
-                                 stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+                                 stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
       
       # Extract sky measurement statistics from image using profitSkyEst()
       if(verb){cat("INFO: Measuring sky statistics.\n")} 
@@ -471,7 +474,7 @@ for (galName in galList){ # loop through galaxies
         # @Robin Cook: Extract sources
         segmentation0 = profoundProFound(image, sigma=segSigma, skycut=segSkyCut, tolerance=segTol, ext=segExt,
                                         magzero=zeroPoint, gain=gain, #header=header,
-                                        stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+                                        stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
         
         # Find the main (central) source
         if(verb){cat("INFO: Finding central source.\n")}
@@ -482,7 +485,7 @@ for (galName in galList){ # loop through galaxies
         segmentationExp = profoundMakeSegimExpand(image=image, segim=segmentation0$segim, expand=mainID, skycut=expSkyCut, sigma=expSigma,
                                                     sky = if (subSky) 0.0 else skyEst$sky, skyRMS=skyMap$skyRMS,
                                                     magzero=zeroPoint, gain=gain, #header=header,
-                                                    stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+                                                    stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
         
         # @Robin Cook: Dilate Segmentation image
         
@@ -490,7 +493,7 @@ for (galName in galList){ # loop through galaxies
           if(verb){cat("INFO: Performing final dilation.\n")}
           segmentation = profoundMakeSegimDilate(image=image, segim=segmentationExp$segim, expand=mainID, size=dilateSize,
                                                     magzero=zeroPoint, gain=gain, #header=header,
-                                                    stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+                                                    stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
         } else {
           segmentation = segmentationExp # set final segmentation undilated
         }
@@ -498,7 +501,7 @@ for (galName in galList){ # loop through galaxies
         # @Hosein Hashemi:
         #segmentation = profitProFound(image, sigma=4, skycut=2, tolerance=5, size=11, pixcut = 5,
         #                              magzero=zeroPoint, gain=gain, header=header,
-        #                              stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=TRUE)
+        #                              stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
         
         # Total extra pixels added to the segmenation map
         numPixExpand = length(segmentation$objects[segmentation$objects != 0]) - length(segmentation0$objects[segmentation0$objects != 0])
@@ -844,7 +847,7 @@ for (galName in galList){ # loop through galaxies
       if (improveInits == TRUE && nComps == 2 && is.null(inheritFrom)){
         if(verb){cat("INFO: Attempting to improve initial guess.\n")}
         if (output && outputIsophotes){
-          isophotesFilename = paste(galName,"_",band,"_Isophotes.png",sep='')
+          isophotesFilename = paste(baseFilename,"_Isophotes.png",sep='')
           png(paste(outputDir,isophotesFilename,sep='/'),width=1050,height=500,pointsize=16)
           par(mfrow=c(1,2), mar=c(3.5,3.5,1,2))
         }
@@ -1002,16 +1005,30 @@ for (galName in galList){ # loop through galaxies
         LAValid = FALSE
       } # END LAFit optimisation
       
-      ### Plot Input Model Likelihood ###
+      
+      ### Save initial guess plots to file
       if (output  && outputInitial){
+        # Plot Input Model Likelihood
         initLikelihoodFilename = paste(baseFilename,"_LikelihoodInitial.png",sep='')
         png(paste(outputDir,initLikelihoodFilename,sep='/'),width=1600,height=1000,pointsize=28)
         profitLikeModel(parm=Data$init,Data=Data,makeplots=TRUE,plotchisq=TRUE)
         dev.off()
         
-        ### Plot Input Model Ellipse ###
+        # Plot Input Model Ellipse
         initEllipseFilename = paste(baseFilename,"_EllipseInitial.png",sep='')
         png(paste(outputDir,initEllipseFilename,sep='/'),width=1000,height=750,pointsize=20)
+        if (nComps == 1){
+          try(profitEllipsePlot(Data=Data,modellist=add_pseudo_bulge(modellist),pixscale=pixScale,SBlim=25))
+        } else if (nComps == 2){
+          try(profitEllipsePlot(Data=Data,modellist=modellist,pixscale=pixScale,SBlim=25))
+        }
+        dev.off()
+      }
+      
+      # Show initial guess plots
+      if (toPlot){
+        profitLikeModel(parm=Data$init,Data=Data,makeplots=TRUE,plotchisq=TRUE)
+        
         if (nComps == 1){
           try(profitEllipsePlot(Data=Data,modellist=add_pseudo_bulge(modellist),pixscale=pixScale,SBlim=25))
         } else if (nComps == 2){
@@ -1115,17 +1132,17 @@ for (galName in galList){ # loop through galaxies
         dev.off()
       }
       
-      ### Plot Optimisation results ###
+      ### Save Optimisation results to file
       if(output  && outputOptimised){
         
-        ### Plot Optimised Model Likelihood:
+        # Plot Optimised Model Likelihood:
         optimLikelihoodFilename = paste(baseFilename,"_LikelihoodOptimised.png",sep='')
         png(paste(outputDir,optimLikelihoodFilename,sep='/'),width=1600,height=1000,pointsize=28)
         profitLikeModel(optimFit,Data,makeplots=TRUE,plotchisq=TRUE)
         dev.off()
       
       
-        ### Plot Optimised Ellipse Plot:
+        # Plot Optimised Ellipse Plot:
         optimEllipseFilename = paste(baseFilename,"_EllipseOptimised.png",sep='')
         png(paste(outputDir,optimEllipseFilename,sep='/'),width=1000,height=750,pointsize=20)
         if (nComps == 1){
@@ -1135,6 +1152,20 @@ for (galName in galList){ # loop through galaxies
         }
         dev.off()
       
+      }
+      
+      ### Show Optimisation results
+      if (toPlot){
+        # Plot Optimised Model Likelihood:
+        profitLikeModel(optimFit,Data,makeplots=TRUE,plotchisq=TRUE)
+        
+        # Plot Optimised Ellipse Plot:
+        if (nComps == 1){
+          try(profitEllipsePlot(Data=Data,add_pseudo_bulge(optimModellist),pixscale=pixScale,SBlim=25,FWHM=1.4))
+        }else if (nComps == 2){
+          try(profitEllipsePlot(Data=Data,optimModellist,pixscale=pixScale,SBlim=25,FWHM=1.4,raw=FALSE))
+        }
+        dev.off()
       }
       
       ### Calculate the chi^2 statistics
