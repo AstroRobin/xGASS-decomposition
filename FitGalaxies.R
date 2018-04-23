@@ -64,8 +64,10 @@ library(FITSio) # .FITS file input/output
 library(LaplacesDemon,warn.conflicts=FALSE) # MCMC optimisation package
 
 
-### Deal with potential missing variables in .conf file from future updates
+### Deal with potentially missing variables in .conf file from future updates
 if (!exists("toPlot")) {toPlot = FALSE}
+if (!exists("nBFromCon")) {nBFromCon = nFromCon}
+if (!exists("nDFromFit")) {nDFromFit = FALSE}
 
 ###################################################################
 ######################### DEFINE FUNCTIONS ########################
@@ -80,7 +82,7 @@ calc_conc = function(n,alpha=1/3){ # Calculates the concentration index for a gi
   return( inc_gamma(2*n, b*alpha^(1/n)) / inc_gamma(2*n,b) )
 }
 
-get_nser = function(c,nMin=0.5,nMax=15.0){ # Given a concentration index, calculate the Sersic index with which
+get_nB = function(c,nMin=0.5,nMax=15.0){ # Given a concentration index, calculate the Sersic index with which
   # <param: c [float]> - The measured concentration index for the galaxy (R50/R90)
   # <param: nMin [float]> - The minimum Sersic index
   # <param: nMax [float]> - The maximum Sersic index
@@ -100,11 +102,38 @@ get_nser = function(c,nMin=0.5,nMax=15.0){ # Given a concentration index, calcul
   return(n)
 }
 
+get_nD = function(gal, band, run, nMax=1.0){ # Assign a value to the disk Sersic index based on the corresponding single-component model of a particular run.
+  # <param: gal [string]> - The name of the galaxy.
+  # <param: band [string]> - The filter to be referenced.
+  # <param: run [string]> - The fitting run being referenced
+  # <param: nMax [float]> - The maximum allowed disk Sersic index (default: nDisk <= 1).
+  
+  # <return: nDisk [float]> - The sersic index of the single-component model [min(nDisk,1)]
+  
+  # Open the results of the corresponding single-component fit.
+  resultFilename = paste(gal,"-",run,"_",band,"_1comp_Output.csv",sep="")
+  resultPath = paste(galsDir,gal,"Fitting",run,resultFilename,sep="/")
+  
+  # Open file IF it exists, else set nDisk = 1.0
+  if (file.exists(resultPath)){
+    if(verb){cat(paste("INFO: Getting disk Sersic index from \".../",resultFilename,"\".\n",sep=""))}
+    result = read.csv(resultPath, header=TRUE,quote="")
+    nDisk = min(result["nser_out"],nMax) # only allow for n values lower than nMax
+  } else { # File did not exist, setting nDisk = 1
+    nDisk = 1.0
+    cat(paste("WARNING: File \"",resultPath,"\" does not exist! Setting nDisk = ",nMax,".\n",sep=""))
+  }
+  
+  return(nDisk)
+}
+
 get_B2T = function(n,nMax=20.0){ # Given a Sersic index from a single component fit, calculate an estimate for the Bulge/Total ration
   # <param: n [float]> - The single component Sersic index
   # <param: nMax [float]> - The maximum Sersic index (defined such that B2T = 0.9 @ nMax).
   
   # <return: B2T [float]> - The bulge-to-total ratio.
+  
+  if(verb){cat("INFO: Getting bulge Sersic index from concentration.\n")}
   
   a = 0.2; b = 0.2 # The relation is a logarithmic function that allows a steep rise at low n and a slow plateau beyond n ~ 7
   B2T = 0.9 * (a + b*log(n)) / (a + b*log(nMax)) # Defined to set B2t to 90% at nMax
@@ -597,7 +626,7 @@ for (galName in galList){ # loop through galaxies
         ycenInits = rep(inits$ycen[mainIndex],2)
         magInits = divide_magnitude(inits$mag[mainIndex],frac=bulgeFrac)
         reInits = c(inits$semimaj[mainIndex]*1/3,inits$semimaj[mainIndex]*1)
-        nSerInits = c(if (nFromCon) get_nser(inits$con[mainIndex]) else 4, 1) # Bulge: n = 4 (de Vaucouleurs); Disk: n = 1 (Exponential)
+        nSerInits = c(if (nBFromCon) get_nB(inits$con[mainIndex]) else 4, if (nDFromFit) get_nD(gal,band,run) else 1) # [Defaults] Bulge: n = 4 (de Vaucouleurs); Disk: n = 1 (Exponential)
         angInits = rep(inits$ang[mainIndex],2)
         axratInits = c(1,inits$axrat[mainIndex]) # Bulge is initially at axrat=1
         boxInits = rep(0,2)
@@ -606,7 +635,7 @@ for (galName in galList){ # loop through galaxies
         ycenInits = c(inits$ycen[mainIndex])
         magInits = c(inits$mag[mainIndex])
         reInits = c(inits$semimaj[mainIndex]*1.0)
-        nSerInits = if (nFromCon) c(get_nser(inits$con[mainIndex])) else c(4)
+        nSerInits = if (nBFromCon) c(get_nB(inits$con[mainIndex])) else c(1) # [Default] Sersic: n = 1 (Exponential)
         angInits = c(inits$ang[mainIndex])
         axratInits = c(inits$axrat[mainIndex])
         boxInits = c(0)
@@ -1240,7 +1269,8 @@ for (galName in galList){ # loop through galaxies
         cat("Fit for boxiness: ",fitBoxiness,"\n")
         cat("Free disk Sersic: ",freeDisk,"\n")
         cat("Free bulge shape: ",freeBulge,"\n")
-        cat("Sersic index from Concentration: ",nFromCon,"\n")
+        cat("Bulge Sersic index from Concentration: ",nBFromCon,"\n")
+        cat("Disk Sersic index from previous 1comp fit: ",nDFromFit,"\n")
         cat("Bulge/Total Ratio: ",bulgeFrac,"\n")
         cat("Used Priors: ",usePriors,"\n")
         
