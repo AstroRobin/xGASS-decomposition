@@ -89,6 +89,8 @@ get_nB = function(c,nMin=0.5,nMax=15.0){ # Given a concentration index, calculat
   
   # <return: n [float]> - The corresponding Sersic index for a given concentration index
   
+  if(verb){cat("INFO: Getting bulge Sersic index from concentration.\n")}
+  
   n_arr = seq(nMin,nMax,by=0.05) # an array of Sersic indices for which to calculate the concentration over
   c_arr = calc_conc(n_arr) # The corresponding concentrations.
   
@@ -133,7 +135,7 @@ get_B2T = function(n,nMax=20.0){ # Given a Sersic index from a single component 
   
   # <return: B2T [float]> - The bulge-to-total ratio.
   
-  if(verb){cat("INFO: Getting bulge Sersic index from concentration.\n")}
+  if(verb){cat("INFO: Getting bulge-to-total fraction from Sersic index.\n")}
   
   a = 0.2; b = 0.2 # The relation is a logarithmic function that allows a steep rise at low n and a slow plateau beyond n ~ 7
   B2T = 0.9 * (a + b*log(n)) / (a + b*log(nMax)) # Defined to set B2t to 90% at nMax
