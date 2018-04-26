@@ -47,6 +47,7 @@ if (length(args) != 0) { # get .conf file from command line arguments
       configFound = TRUE
     }
   }
+  rm(file)
 }
 
 if (configFound==TRUE){source(configFile)} # If a .conf file is found, load the configuration values
@@ -301,6 +302,11 @@ calc_chisq = function(image, modelImage, sigma, segMap) # Calculate the average 
 #####################  RETRIEVE GALAXY LIST  ######################
 ###################################################################
 
+### Check whether the galaxies directory exists
+if (!file.exists(galsDir)){
+  stop(paste("galsDir \"",galsDir,"\" does not exist!\n  -- ABORTING --\n",sep=""))
+}
+
 if (length(args) > 1) { # Line number has been specified in comman-line argument
   lineNum = as.integer(args[2])
 }
@@ -308,7 +314,7 @@ if (length(args) > 1) { # Line number has been specified in comman-line argument
 ### Specifying which galaxies to fit. (Requires image and PSF files.) ###
 if (galFile == "") { # galaxy file not given in .conf file; using galList instead.
   if (length(galNames) == 0){
-    cat("WARNING: No 'galFile' or 'galList' specified.\n  -- ABORTING --\n")
+    cat("WARNING: No 'galFile' or 'galList' specified.\n")
     galList = c()
   }
   
@@ -628,7 +634,7 @@ for (galName in galList){ # loop through galaxies
         ycenInits = rep(inits$ycen[mainIndex],2)
         magInits = divide_magnitude(inits$mag[mainIndex],frac=bulgeFrac)
         reInits = c(inits$semimaj[mainIndex]*1/3,inits$semimaj[mainIndex]*1)
-        nSerInits = c(if (nBFromCon) get_nB(inits$con[mainIndex]) else 4, if (nDFromFit) get_nD(gal,band,run) else 1) # [Defaults] Bulge: n = 4 (de Vaucouleurs); Disk: n = 1 (Exponential)
+        nSerInits = c(if (nBFromCon) get_nB(inits$con[mainIndex]) else 4, if (nDFromFit) get_nD(galName,band,run) else 1) # [Defaults] Bulge: n = 4 (de Vaucouleurs); Disk: n = 1 (Exponential)
         angInits = rep(inits$ang[mainIndex],2)
         axratInits = c(1,inits$axrat[mainIndex]) # Bulge is initially at axrat=1
         boxInits = rep(0,2)
