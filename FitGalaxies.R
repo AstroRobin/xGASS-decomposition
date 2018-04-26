@@ -356,7 +356,7 @@ for (band in bandList){
     galList = setdiff(galList, noPSF)
   }
   
-  rm(imgPath,imgFilename,psfPath,psfFilename,galName)
+  rm(imgPath,imgFilename,psfPath,psfFilename,galName,band)
 }
 
 ###################################################################
@@ -369,18 +369,25 @@ for (galName in galList){ # loop through galaxies
     for (nComps in compList){ # loop through number of components.
       if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
       
-      ### INPUTS ### *otherwise taken from .conf file
-      # galName = "GASS110076"
-      # band = "r"
-      # nComps = 1
+      ### INPUTS (for testing) ### *otherwise taken from .conf file
+      if (!exists("galName")){galName = galList[1]}
+      if (!exists("band")){band = bandList[1]}
+      if (!exists("nComps")){nComps = compList[1]}
       
-      ### Create outputs folder ###
+      ### Create outputs folder (if it dosen't already exist) ###
       if(verb){cat("INFO: Creating output directories.\n")}
-      dir.create(paste(galsDir,galName,"Fitting",sep='/'), showWarnings = FALSE) # Suppress warning if directory already exists.
+      if (!file.exists(paste(galsDir,galName,"Fitting",sep='/'))){
+        dir.create(paste(galsDir,galName,"Fitting",sep='/'))
+      }
+      
       # Check Prefix validity:
       if (run == '' || is.null(run)){print("WARNING: Setting run name to 'Default'"); run = 'Default'}
       outputDir = paste(galsDir,galName,"Fitting",run,sep='/')
-      dir.create(outputDir, showWarnings = FALSE)  # Suppress warning if directory already exists.
+      if (!file.exists(outputDir)){
+        dir.create(outputDir)  # Suppress warning if directory already exists.
+      }
+      
+      # Define the base file path for output files
       baseFilename = paste(galName,"-",run,"_",band,"_",nComps,"comp",sep="")
 
       ### Get image file ###
@@ -977,10 +984,10 @@ for (galName in galList){ # loop through galaxies
           if(verb){cat("INFO: Replacing initial model with isophotal 1D fit solution.\n")}
           Data$init['sersic.mag1'] = isoFit[1]
           Data$init['sersic.re1'] = 10^isoFit[2]
-          Data$init['sersic.nser1'] = 10^isoFit[3]
+          if (nBFromCon == FALSE) {Data$init['sersic.nser1'] = 10^isoFit[3]} # Don't replace if taking n_Bulge from concentration index
           Data$init['sersic.mag2'] = isoFit[4]
           Data$init['sersic.re2'] = 10^isoFit[5]
-          Data$init['sersic.nser2'] = 10^isoFit[6]
+          if (freeDisk == TRUE && nDFromFit == FALSE) {Data$init['sersic.nser2'] = 10^isoFit[6]} # Don't replace if taking n_Disk from previous fit or disk is not being fit.
         } else {
           if(verb){cat("WARNING: isoFit solution did not converge.\n")}
         }
