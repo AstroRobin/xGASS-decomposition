@@ -700,7 +700,7 @@ for (galName in galList){ # loop through galaxies
           load(paste(galsDir,galName,"Fitting",inheritFrom$form,envirFile,sep="/"), envir=tempEnvir) # load inheriting RData into temporary environment
           
           #### This isn't correct! ###
-          inheritModellist = get('modellist',tempEnvir)
+          inheritModellist = get('optimModellist',tempEnvir)
           ############################
           
           if (nComps == inheritFrom$nComps){ # The inheriting parameters have the same model structure
