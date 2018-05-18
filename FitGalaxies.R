@@ -67,7 +67,7 @@ if (!exists("nBFromCon")) {nBFromCon = nFromCon}
 if (!exists("nDFromFit")) {nDFromFit = FALSE}
 if (!exists("posOffset")) {posOffset = 10}
 if (!exists("saveMask")) {saveMask = TRUE}
-if (!exists("loadMask")) {saveMask = FALSE}
+if (!exists("loadMask")) {loadMask = FALSE}
 
 ###################################################################
 ######################### DEFINE FUNCTIONS ########################
@@ -129,16 +129,18 @@ get_nD = function(gal, band, run, nMax=1.0){ # Assign a value to the disk Sersic
   return(nDisk)
 }
 
-get_B2T = function(n,nMax=20.0){ # Given a Sersic index from a single component fit, calculate an estimate for the Bulge/Total ration
+get_B2T = function(n,A=0.275,B=0.135,minB2T=0.05){ # Given a Sersic index from a single component fit, calculate an estimate for the Bulge/Total ration
   # <param: n [float]> - The single component Sersic index
-  # <param: nMax [float]> - The maximum Sersic index (defined such that B2T = 0.9 @ nMax).
+  # <param: A,B [float]> - The parameters that define the logarithmic relation between B/T ratio and n.
+  # <param: minB2T [float]> - The minimum B2T value allowed.
   
   # <return: B2T [float]> - The bulge-to-total ratio.
   
   if(verb){cat("INFO: Getting bulge-to-total fraction from Sersic index.\n")}
   
-  a = 0.2; b = 0.2 # The relation is a logarithmic function that allows a steep rise at low n and a slow plateau beyond n ~ 7
-  B2T = 0.9 * (a + b*log(n)) / (a + b*log(nMax)) # Defined to set B2T to 90% at nMax
+  # Calculate the B/T ratio from the Sersic index, n:
+  B2T = max(A*log10(n) + B, minB2T) # max() to ensure the B2T dosen't go below the specified minimum
+  
   return(B2T)
 }
 
@@ -362,116 +364,272 @@ for (band in bandList){
 ########################## OPTIMISATION ###########################
 ###################################################################
 
+# Check Run name validity:
+if (run == '' || is.null(run)){print("WARNING: Setting run name to 'Default'"); run = 'Default'}
+
+################ Loop over galaxies ################
 count = 1 # A running count of galaxies
 for (galName in galList){ # loop through galaxies
+  if (!exists("galName")){galName = galList[1]} # If manual enter of for loop
+  
+  ### Create outputs folder (if it dosen't already exist) ###
+  if(verb){cat("INFO: Creating output directories.\n")}
+  if (!file.exists(paste(galsDir,galName,"Fitting",sep='/'))){
+    dir.create(paste(galsDir,galName,"Fitting",sep='/'))
+  }
+  
+  outputDir = paste(galsDir,galName,"Fitting",run,sep='/')
+  if (!file.exists(outputDir)){
+    dir.create(outputDir)  # Suppress warning if directory already exists.
+  }
+  
+  ################# Loop over bands #################
   for (band in bandList){ # loop through bands
+    if (!exists("band")){band = bandList[1]} # If manual enter of for loop
+    
+    ### Get image file ###
+    if(verb){cat("INFO: Retrieving data.\n")}
+    imgFilename = paste(galName,"_",band,".fits",sep="")
+    imgFile = paste(galsDir,galName,band,imgFilename,sep='/')
+    image0 = readFITS(imgFile)$imDat # image0 is the non sky-subtracted image
+    header = readFITS(imgFile)$hdr
+    
+    dims = dim(image0) # image dimensions
+    padded = is.element(NaN,image0) # Check for NaN padding in images where the frame edge is present.
+    
+    ### Get information from FITS header ###
+    # Referencing keywords in header
+    # <VALUE> = as.numeric(header[which(header=="<KEYWORD>")+1])
+    zeroPoint = as.numeric(header[which(header=="ZP")+1])
+    gain = as.numeric(header[which(header=="GAIN")+1])
+    
+    ### Get PSF file ###
+    psfFilename = paste(galName,"_",band,"_PSF.fits",sep="")
+    psfFile = paste(galsDir,galName,band,psfFilename,sep='/')
+    psf = readFITS(psfFile)$imDat
+    
+    ### IF SDSS: Subtract softBias from image and PSF ###
+    if (dataSource == "SDSS"){
+      softBias = as.numeric(header[which(header=="SOFTBIAS")+1])
+      if (subSoftBias){
+        image0 = image0 - softBias
+        psf = psf - softBias
+      }
+    }
+    
+    ############################################################
+    ###### Measure sky statistics with profoundProfound() ######
+    ############################################################
+    
+    # Get sky box car filter dimensions
+    if (!is.na(skyBoxNum)){ # Box size specified as num. of boxes within image
+      skyBoxDims = rep(as.integer(dims[1]/skyBoxNum),2)
+    } else if (!is.na(skyBoxSize)){ # Box size given as absolute
+      skyBoxDims = rep(as.integer(skyBoxSize),2)
+    } else { # Default box size
+      skyBoxDims = rep(101,2)
+    }
+    
+    # Use profound to get sky measurements
+    if(verb){cat("INFO: Creating initial sky mask.\n")} # initial sky mask
+    skyMap0 = profoundProFound(image0, skycut=1.0, tolerance=5, redosky=TRUE, redoskysize=21, pixcut=9,
+                               #box = c(dims[1]/10,dims[2]/10), grid = c(dims[1]/12,dims[2]/12),type='bicubic',
+                               magzero=zeroPoint, gain=gain, pixscale=pixScale, # header=header,
+                               stats=FALSE, rotstats=FALSE, boundstats=FALSE, plot=toPlot)
+    
+    if(verb){cat("INFO: Expanding sky mask.\n")} # Expanding the sky mask further with dilation
+    skyMapExp = profoundMakeSegimExpand(image0, segim=skyMap0$segim, tolerance=5, sigma=2.5, skycut=-1.0, sky=skyMap0$sky, skyRMS=skyMap0$skyRMS,
+                                        magzero=zeroPoint, gain=gain, pixscale=pixScale,# header=header,
+                                        stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
+    
+    skyMapExp = profoundMakeSegimDilate(image0, segim=skyMapExp$segim, tolerance=5, size=15, sky=skyMap0$sky, skyRMS=skyMap0$skyRMS,
+                                        magzero=zeroPoint, gain=gain, pixscale=pixScale,# header=header,
+                                        stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
+    
+    if(verb){cat("INFO: Measuring sky map.\n")} # Measuring the sky map across the image
+    skyMap = profoundProFound(image0, segim = skyMapExp$segim,
+                              box = skyBoxDims, grid = skyBoxDims,type='bicubic',
+                              magzero=zeroPoint, gain=gain, pixscale=pixScale, # header=header,
+                              stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
+    
+    # Extract sky measurement statistics from image using profitSkyEst()
+    if(verb){cat("INFO: Measuring sky statistics.\n")} 
+    skyEst = profoundSkyEst(image0, objects = skyMap$objects_redo, plot=FALSE)
+    skyVal = skyEst$sky
+    skyRMS = skyEst$skyRMS
+    
+    # Get sky statistics from sky map produced in profoundProFound
+    skyStats = capture.output(maghist(skyMap$sky,plot=FALSE))
+    
+    # Subtract the background sky
+    if (subSky){
+      if(verb){cat("INFO: Subtracting background sky from image.\n")}
+      image = if (skyAsGrid) (image0 - skyMap$sky) else (image0 - skyVal)
+    } else {
+      image = image0
+    }
+    
+    
+    ###########################################################
+    #####  Make Segmentation map with ProFit (/ProFound)  #####
+    ###########################################################
+    
+    if (loadSegMap == TRUE){ # Load the segmentation image from galaxy data directory.
+      segMapFilename = paste(galName,"_",band,"_SegMap.fits",sep="") # The name of the segmentation fits file.
+      segMapFile = paste(galsDir,galName,band,segMapFilename,sep='/') # The path to the segmentation fits file.
+      if (!file.exists(segMapFile)){cat(paste("\nWARNING: \"",segMapFile,"\" does not exist! Making segmentation map from image instead.\n",sep=""))}
+    }
+    
+    if (loadSegMap == TRUE && file.exists(segMapFile)){
+      if(verb){cat("INFO: Loading segmentation map.\n")}
+      segmentation = list() # Set up a new segmenation[$segim,$objects,$segstats] structure
+      
+      # Read in the segmentation image
+      segmentation$segim = readFITS(segMapFile)$imDat
+      
+      segmentation$objects = segmentation$segim
+      segmentation$objects[segmentation$objects!=0] = 1
+      
+      # Measure segmentation stats for the segmentation image
+      segmentation$segstats =  profoundSegimStats(image, segmentation$segim, magzero=zeroPoint, gain=gain, pixscale=pixScale, rotstats=TRUE, boundstats=TRUE)
+      
+    } else { # Create a new segmentation image.
+      
+      if(verb){cat("INFO: Creating Segmentation image.\n")}
+      
+      # @Robin Cook: Extract sources
+      segmentation0 = profoundProFound(image, sigma=segSigma, skycut=segSkyCut, tolerance=segTol, ext=segExt,
+                                       magzero=zeroPoint, gain=gain, #header=header,
+                                       stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
+      
+      # Find the main (central) source
+      if(verb){cat("INFO: Finding central source.\n")}
+      mainID = find_main_ID(segmentation0) # The main source is the one with the smallest separation from the centre
+      
+      # @Robin Cook: Expand Segmentation image
+      if(verb){cat("INFO: Expanding target segment.\n")}
+      segmentationExp = profoundMakeSegimExpand(image=image, segim=segmentation0$segim, expand=mainID, skycut=expSkyCut, sigma=expSigma,
+                                                sky = if (subSky) 0.0 else skyEst$sky, skyRMS=skyMap$skyRMS,
+                                                magzero=zeroPoint, gain=gain, #header=header,
+                                                stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
+      
+      # @Robin Cook: Dilate Segmentation image
+      
+      if (dilateSize != 0){ # if dilation > 0, perform dilation.
+        if(verb){cat("INFO: Performing final dilation.\n")}
+        segmentation = profoundMakeSegimDilate(image=image, segim=segmentationExp$segim, expand=mainID, size=dilateSize,
+                                               magzero=zeroPoint, gain=gain, #header=header,
+                                               stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
+      } else {
+        segmentation = segmentationExp # set final segmentation undilated
+      }
+      
+      # @Hosein Hashemi:
+      #segmentation = profitProFound(image, sigma=4, skycut=2, tolerance=5, size=11, pixcut = 5,
+      #                              magzero=zeroPoint, gain=gain, header=header,
+      #                              stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
+      
+      # Total extra pixels added to the segmenation map
+      numPixExpand = length(segmentation$objects[segmentation$objects != 0]) - length(segmentation0$objects[segmentation0$objects != 0])
+    }
+    
+    # Find the main (central) source
+    if(verb){cat("INFO: Finding central source.\n")}
+    mainID = find_main_ID(segmentation) # The main source is the one with the smallest separation from the centre
+    mainIndex = find_main_index(segmentation)
+    
+    #Create segmentation image from only the central source
+    segMap = segmentation$segim
+    segMap[segMap!=mainID]=0 # only use the central source
+    
+    # [visualisation] Make a segmentation map image using pixels from 'image'
+    segMapIm = image
+    segMapIm[segMap!=mainID]=0
+    
+    ##########################################
+    #####   Make Sigma map with ProFit   #####
+    ##########################################
+    
+    if (loadSigma == TRUE){ # Load the sigma image from galaxy data directory.
+      sigmaFilename = paste(galName,"_",band,"_Sigma.fits",sep="") # The name of the sigma fits file.
+      sigmaFile = paste(galsDir,galName,band,sigmaFilename,sep='/') # The path to the sigma fits file.
+      if (!file.exists(sigmaFile)){cat(paste("\nWARNING: \"",sigmaFile,"\" does not exist! Making sigma map from image instead.\n",sep=""))}
+    }
+    
+    if (loadSigma == TRUE && file.exists(sigmaFile)){
+      if(verb){cat("INFO: Loading sigma map.\n")}
+      
+      # Read in the sigma image
+      sigma = readFITS(sigmaFile)$imDat
+    } else {
+      if(verb){cat("INFO: Making sigma map.\n")}
+      
+      # > sky level is defined as 0.0 as sky has already been subtracted.
+      # > sigma map reflects the original image, however, sky pixels are set to a fixed uncertainty and object pixels have additional shot noise.
+      sigma = profoundMakeSigma(image,sky=if (subSky) 0.0 else skyEst$sky,skyRMS=skyEst$skyRMS,objects=segmentation$objects,gain=gain,plot=FALSE)
+    }
+    
+    
+    ###########################################
+    #####   Get Mask Object for Fitting    ####
+    ###########################################
+    
+    if (loadMask == TRUE){ # Load the mask image from galaxy data directory.
+      if(verb){cat("INFO: Loading mask map.\n")}
+      
+      maskFilename = paste(galName,"_",band,"_Mask.fits",sep="") # The name of the mask fits file.
+      maskFile = paste(galsDir,galName,band,maskFilename,sep='/') # The path to the mask fits file.
+      if (!file.exists(maskFile)){
+        cat(paste("\nWARNING: \"",maskFile,"\" does not exist! No mask will be applied.\n",sep=""))
+        mask = matrix(0, nrow=dim(image)[1], ncol=dim(image)[2]) # Create a mask matrix which contains all zeros, i.e. no masked pixels
+      } else {
+        mask = readFITS(maskFile)$imDat # Read in the mask image
+      }
+      
+    } else {
+      mask = matrix(0, nrow=dim(image)[1], ncol=dim(image)[2]) # Create a mask matrix which contains all zeros, i.e. no masked pixels
+    }
+    
+    
+    # Save inputs if save[*] is True and not already a loaded input.
+    if (savePSF && !loadPSF){ # PSF
+      if(verb){cat("INFO: Saving PSF.\n")}
+      psfOutFilename = paste(galName,"_",band,"_PSF.fits",sep="")
+      writeFITSim(psf, file = paste(galsDir,galName,band,psfOutFilename,sep='/'))
+    }
+    
+    if (saveSegMap && !loadSegMap){ # Segmentation Map
+      if(verb){cat("INFO: Saving segmentation map.\n")}
+      segOutFilename = paste(galName,"_",band,"_SegMap.fits",sep="")
+      writeFITSim(segmentation$segim, file = paste(galsDir,galName,band,segOutFilename,sep='/'))
+    }
+    
+    if (saveSigma && !loadSigma){ # Sigma Map
+      if(verb){cat("INFO: Saving sigma map.\n")}
+      sigmaOutFilename = paste(galName,"_",band,"_Sigma.fits",sep="")
+      writeFITSim(sigma, file = paste(galsDir,galName,band,sigmaOutFilename,sep='/'))
+    }
+    
+    ############# Loop over num. components #############
     for (nComps in compList){ # loop through number of components.
       if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
-      
-      ### INPUTS (for testing) ### *otherwise taken from .conf file
-      if (!exists("galName")){galName = galList[1]}
-      if (!exists("band")){band = bandList[1]}
       if (!exists("nComps")){nComps = compList[1]}
-      
-      ### Create outputs folder (if it dosen't already exist) ###
-      if(verb){cat("INFO: Creating output directories.\n")}
-      if (!file.exists(paste(galsDir,galName,"Fitting",sep='/'))){
-        dir.create(paste(galsDir,galName,"Fitting",sep='/'))
-      }
-      
-      # Check Prefix validity:
-      if (run == '' || is.null(run)){print("WARNING: Setting run name to 'Default'"); run = 'Default'}
-      outputDir = paste(galsDir,galName,"Fitting",run,sep='/')
-      if (!file.exists(outputDir)){
-        dir.create(outputDir)  # Suppress warning if directory already exists.
-      }
       
       # Define the base file path for output files
       baseFilename = paste(galName,"-",run,"_",band,"_",nComps,"comp",sep="")
 
-      ### Get image file ###
-      if(verb){cat("INFO: Retrieving data.\n")}
-      imgFilename = paste(galName,"_",band,".fits",sep="")
-      imgFile = paste(galsDir,galName,band,imgFilename,sep='/')
-      image0 = readFITS(imgFile)$imDat # image0 is the non sky-subtracted image
-      header = readFITS(imgFile)$hdr
-      
-      dims = dim(image0) # image dimensions
-      padded = is.element(NaN,image0) # Check for NaN padding in images where the frame edge is present.
-      
-      
-      ### Get information from FITS header ###
-      # Referencing keywords in header
-      # <VALUE> = as.numeric(header[which(header=="<KEYWORD>")+1])
-      zeroPoint = as.numeric(header[which(header=="ZP")+1])
-      gain = as.numeric(header[which(header=="GAIN")+1])
-      
-      
-      ### Get PSF file ###
-      psfFilename = paste(galName,"_",band,"_PSF.fits",sep="")
-      psfFile = paste(galsDir,galName,band,psfFilename,sep='/')
-      psf = readFITS(psfFile)$imDat
-      
-      
-      ### IF SDSS: Subtract softBias from image and PSF ###
-      if (dataSource == "SDSS"){
-        softBias = as.numeric(header[which(header=="SOFTBIAS")+1])
-        if (subSoftBias){
-          image0 = image0 - softBias
-          psf = psf - softBias
-        }
-      }
-      
-      ############################################################
-      ###### Measure sky statistics with profoundProfound() ######
-      ############################################################
-      
-      # Get sky box car filter dimensions
-      if (!is.na(skyBoxNum)){ # Box size specified as num. of boxes within image
-        skyBoxDims = rep(as.integer(dims[1]/skyBoxNum),2)
-      } else if (!is.na(skyBoxSize)){ # Box size given as absolute
-        skyBoxDims = rep(as.integer(skyBoxSize),2)
-      } else { # Default box size
-        skyBoxDims = rep(101,2)
-      }
-      
-      # Use profound to get sky measurements
-      if(verb){cat("INFO: Creating initial sky mask.\n")} # initial sky mask
-      skyMap0 = profoundProFound(image0, skycut=1.0, tolerance=5, redosky=TRUE, redoskysize=21, pixcut=9,
-                                    #box = c(dims[1]/10,dims[2]/10), grid = c(dims[1]/12,dims[2]/12),type='bicubic',
-                                    magzero=zeroPoint, gain=gain, pixscale=pixScale, # header=header,
-                                    stats=FALSE, rotstats=FALSE, boundstats=FALSE, plot=toPlot)
-      
-      if(verb){cat("INFO: Expanding sky mask.\n")} # Expanding the sky mask further with dilation
-      skyMapExp = profoundMakeSegimExpand(image0, segim=skyMap0$segim, tolerance=5, sigma=2.5, skycut=-1.0, sky=skyMap0$sky, skyRMS=skyMap0$skyRMS,
-                                          magzero=zeroPoint, gain=gain, pixscale=pixScale,# header=header,
-                                          stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
-      
-      skyMapExp = profoundMakeSegimDilate(image0, segim=skyMapExp$segim, tolerance=5, size=15, sky=skyMap0$sky, skyRMS=skyMap0$skyRMS,
-                                          magzero=zeroPoint, gain=gain, pixscale=pixScale,# header=header,
-                                          stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=FALSE)
-      
-      if(verb){cat("INFO: Measuring sky map.\n")} # Measuring the sky map across the image
-      skyMap = profoundProFound(image0, segim = skyMapExp$segim,
-                                 box = skyBoxDims, grid = skyBoxDims,type='bicubic',
-                                 magzero=zeroPoint, gain=gain, pixscale=pixScale, # header=header,
-                                 stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
-      
-      # Extract sky measurement statistics from image using profitSkyEst()
-      if(verb){cat("INFO: Measuring sky statistics.\n")} 
-      skyEst = profoundSkyEst(image0, objects = skyMap$objects_redo, plot=FALSE)
-      skyVal = skyEst$sky
-      skyRMS = skyEst$skyRMS
-      
-      # Get sky statistics from sky map produced in profoundProFound
-      skyStats = capture.output(maghist(skyMap$sky,plot=FALSE))
-      
-      # Subtract the background sky
-      if (subSky){
-        if(verb){cat("INFO: Subtracting background sky from image.\n")}
-        image = if (skyAsGrid) (image0 - skyMap$sky) else (image0 - skyVal)
-      } else {
-        image = image0
+      ########################################
+      #####   Plot & Save Input Images   #####
+      ########################################
+      if (output && outputInputs){
+        inputsFilename = paste(baseFilename,"_Inputs.png",sep='')
+        png(paste(outputDir,inputsFilename,sep='/'),width=750,height=750,pointsize=16)
+        par(mfrow=c(2,2), mar=c(0.4,0.4,1,1))
+        magimage(image,axes=F,bad=0); text(0.1*dim(image)[1],0.925*dim(image)[2],"Image",pos=4,col='white',cex= 1.75)
+        profoundSegimPlot(image,segim=segmentation$segim,mask=mask,axes=F,lwd=3,bad=0); text(0.1*dim(image)[1],0.925*dim(image)[2],"Segmentation",pos=4,col='white',cex= 1.75)
+        magimage(sigma,axes=F,bad=0); text(0.1*dim(image)[1],0.925*dim(image)[2],"Sigma",pos=4,col='white',cex= 1.75)
+        magimage(psf,axes=F,bad=0); text(0.1*dim(psf)[1],0.925*dim(psf)[2],"PSF",pos=4,col='white',cex= 1.75)
+        dev.off()
       }
       
       ### Plot input images ###
@@ -487,165 +645,10 @@ for (galName in galList){ # loop through galaxies
         dev.off()
       }
       
-      ###########################################################
-      #####  Make Segmentation map with ProFit (/ProFound)  #####
-      ###########################################################
-      
-      if (loadSegMap == TRUE){ # Load the segmentation image from galaxy data directory.
-        segMapFilename = paste(galName,"_",band,"_SegMap.fits",sep="") # The name of the segmentation fits file.
-        segMapFile = paste(galsDir,galName,band,segMapFilename,sep='/') # The path to the segmentation fits file.
-        if (!file.exists(segMapFile)){cat(paste("\nWARNING: \"",segMapFile,"\" does not exist! Making segmentation map from image instead.\n",sep=""))}
-      }
-      
-      if (loadSegMap == TRUE && file.exists(segMapFile)){
-        if(verb){cat("INFO: Loading segmentation map.\n")}
-        segmentation = list() # Set up a new segmenation[$segim,$objects,$segstats] structure
-        
-        # Read in the segmentation image
-        segmentation$segim = readFITS(segMapFile)$imDat
-        
-        segmentation$objects = segmentation$segim
-        segmentation$objects[segmentation$objects!=0] = 1
-        
-        # Measure segmentation stats for the segmentation image
-        segmentation$segstats =  profoundSegimStats(image, segmentation$segim, magzero=zeroPoint, gain=gain, pixscale=pixScale, rotstats=TRUE, boundstats=TRUE)
-        
-      } else { # Create a new segmentation image.
-      
-        if(verb){cat("INFO: Creating Segmentation image.\n")}
-        
-        # @Robin Cook: Extract sources
-        segmentation0 = profoundProFound(image, sigma=segSigma, skycut=segSkyCut, tolerance=segTol, ext=segExt,
-                                        magzero=zeroPoint, gain=gain, #header=header,
-                                        stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
-        
-        # Find the main (central) source
-        if(verb){cat("INFO: Finding central source.\n")}
-        mainID = find_main_ID(segmentation0) # The main source is the one with the smallest separation from the centre
-        
-        # @Robin Cook: Expand Segmentation image
-        if(verb){cat("INFO: Expanding target segment.\n")}
-        segmentationExp = profoundMakeSegimExpand(image=image, segim=segmentation0$segim, expand=mainID, skycut=expSkyCut, sigma=expSigma,
-                                                    sky = if (subSky) 0.0 else skyEst$sky, skyRMS=skyMap$skyRMS,
-                                                    magzero=zeroPoint, gain=gain, #header=header,
-                                                    stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
-        
-        # @Robin Cook: Dilate Segmentation image
-        
-        if (dilateSize != 0){ # if dilation > 0, perform dilation.
-          if(verb){cat("INFO: Performing final dilation.\n")}
-          segmentation = profoundMakeSegimDilate(image=image, segim=segmentationExp$segim, expand=mainID, size=dilateSize,
-                                                    magzero=zeroPoint, gain=gain, #header=header,
-                                                    stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
-        } else {
-          segmentation = segmentationExp # set final segmentation undilated
-        }
-        
-        # @Hosein Hashemi:
-        #segmentation = profitProFound(image, sigma=4, skycut=2, tolerance=5, size=11, pixcut = 5,
-        #                              magzero=zeroPoint, gain=gain, header=header,
-        #                              stats=TRUE, rotstats=TRUE, boundstats=TRUE, plot=toPlot)
-        
-        # Total extra pixels added to the segmenation map
-        numPixExpand = length(segmentation$objects[segmentation$objects != 0]) - length(segmentation0$objects[segmentation0$objects != 0])
-      }
-      
-      # Find the main (central) source
-      if(verb){cat("INFO: Finding central source.\n")}
-      mainID = find_main_ID(segmentation) # The main source is the one with the smallest separation from the centre
-      mainIndex = find_main_index(segmentation)
-      
-      
       # Save segmentation stats to file
       if(output && outputSegStats){
         segStatsFilename = paste(baseFilename,"_SegmentationStats.csv",sep='')
         write.csv(segmentation$segstats,file=paste(outputDir,segStatsFilename,sep='/'),quote=FALSE,row.names=FALSE)
-      }
-      
-      #Create segmentation image from only the central source
-      segMap = segmentation$segim
-      segMap[segMap!=mainID]=0 # only use the central source
-      
-      # [visualisation] Make a segmentation map image using pixels from 'image'
-      segMapIm = image
-      segMapIm[segMap!=mainID]=0
-      
-      ##########################################
-      #####   Make Sigma map with ProFit   #####
-      ##########################################
-      
-      if (loadSigma == TRUE){ # Load the sigma image from galaxy data directory.
-        sigmaFilename = paste(galName,"_",band,"_Sigma.fits",sep="") # The name of the sigma fits file.
-        sigmaFile = paste(galsDir,galName,band,sigmaFilename,sep='/') # The path to the sigma fits file.
-        if (!file.exists(sigmaFile)){cat(paste("\nWARNING: \"",sigmaFile,"\" does not exist! Making sigma map from image instead.\n",sep=""))}
-      }
-      
-      if (loadSigma == TRUE && file.exists(sigmaFile)){
-        if(verb){cat("INFO: Loading sigma map.\n")}
-        
-        # Read in the sigma image
-        sigma = readFITS(sigmaFile)$imDat
-      } else {
-        if(verb){cat("INFO: Making sigma map.\n")}
-        
-        # > sky level is defined as 0.0 as sky has already been subtracted.
-        # > sigma map reflects the original image, however, sky pixels are set to a fixed uncertainty and object pixels have additional shot noise.
-        sigma = profoundMakeSigma(image,sky=if (subSky) 0.0 else skyEst$sky,skyRMS=skyEst$skyRMS,objects=segmentation$objects,gain=gain,plot=FALSE)
-      }
-      
-      
-      ###########################################
-      #####   Get Mask Object for Fitting    ####
-      ###########################################
-      
-      if (loadMask == TRUE){ # Load the mask image from galaxy data directory.
-        if(verb){cat("INFO: Loading mask map.\n")}
-        
-        maskFilename = paste(galName,"_",band,"_Mask.fits",sep="") # The name of the mask fits file.
-        maskFile = paste(galsDir,galName,band,maskFilename,sep='/') # The path to the mask fits file.
-        if (!file.exists(maskFile)){
-          cat(paste("\nWARNING: \"",maskFile,"\" does not exist! No mask will be applied.\n",sep=""))
-          mask = matrix(0, nrow=dim(image)[1], ncol=dim(image)[2]) # Create a mask matrix which contains all zeros, i.e. no masked pixels
-        } else {
-          mask = readFITS(maskFile)$imDat # Read in the mask image
-        }
-        
-      } else {
-        mask = matrix(0, nrow=dim(image)[1], ncol=dim(image)[2]) # Create a mask matrix which contains all zeros, i.e. no masked pixels
-      }
-      
-      
-      ######################################
-      #####   Plot & Save Input Data   #####
-      ######################################
-      if (output && outputInputs){
-        inputsFilename = paste(baseFilename,"_Inputs.png",sep='')
-        png(paste(outputDir,inputsFilename,sep='/'),width=750,height=750,pointsize=16)
-        par(mfrow=c(2,2), mar=c(0.4,0.4,1,1))
-        magimage(image,axes=F,bad=0); text(0.1*dim(image)[1],0.925*dim(image)[2],"Image",pos=4,col='white',cex= 1.75)
-        profoundSegimPlot(image,segim=segmentation$segim,mask=mask,axes=F,lwd=3,bad=0); text(0.1*dim(image)[1],0.925*dim(image)[2],"Segmentation",pos=4,col='white',cex= 1.75)
-        magimage(sigma,axes=F,bad=0); text(0.1*dim(image)[1],0.925*dim(image)[2],"Sigma",pos=4,col='white',cex= 1.75)
-        magimage(psf,axes=F,bad=0); text(0.1*dim(psf)[1],0.925*dim(psf)[2],"PSF",pos=4,col='white',cex= 1.75)
-        dev.off()
-      }
-      
-      # Save inputs if save[*] is True and not already a loaded input.
-      if (savePSF && !loadPSF){ # PSF
-        if(verb){cat("INFO: Saving PSF.\n")}
-        psfOutFilename = paste(galName,"_",band,"_PSF.fits",sep="")
-        writeFITSim(psf, file = paste(galsDir,galName,band,psfOutFilename,sep='/'))
-      }
-      
-      if (saveSegMap && !loadSegMap){ # Segmentation Map
-        if(verb){cat("INFO: Saving segmentation map.\n")}
-        segOutFilename = paste(galName,"_",band,"_SegMap.fits",sep="")
-        writeFITSim(segmentation$segim, file = paste(galsDir,galName,band,segOutFilename,sep='/'))
-      }
-      
-      if (saveSigma && !loadSigma){ # Sigma Map
-        if(verb){cat("INFO: Saving sigma map.\n")}
-        sigmaOutFilename = paste(galName,"_",band,"_Sigma.fits",sep="")
-        writeFITSim(sigma, file = paste(galsDir,galName,band,sigmaOutFilename,sep='/'))
       }
       
       
@@ -693,15 +696,14 @@ for (galName in galList){ # loop through galaxies
       # If inheritFrom, replace initial parameters with results from the specified previous optimisation run.
       if (!is.null(inheritFrom)){
         # Get the inheriting RData file
-        envirFile = paste(galName,"-",inheritFrom$form,"_",inheritFrom$band,"_",inheritFrom$nComps,"comp_WorkSpace.RData",sep="")
+        envirFile = paste(galName,"-",inheritFrom$run,"_",inheritFrom$band,"_",inheritFrom$nComps,"comp_WorkSpace.RData",sep="")
         
-        if (file.exists( paste(galsDir,galName,"Fitting",inheritFrom$form,envirFile,sep="/") )){
+        if (file.exists( paste(galsDir,galName,"Fitting",inheritFrom$run,envirFile,sep="/") )){
           tempEnvir = new.env() # Create temporary envronment to place workspace of inheriting optimisation run.
-          load(paste(galsDir,galName,"Fitting",inheritFrom$form,envirFile,sep="/"), envir=tempEnvir) # load inheriting RData into temporary environment
+          load(paste(galsDir,galName,"Fitting",inheritFrom$run,envirFile,sep="/"), envir=tempEnvir) # load inheriting RData into temporary environment
           
-          #### This isn't correct! ###
+          # Load in the optimised model from the previous fit
           inheritModellist = get('optimModellist',tempEnvir)
-          ############################
           
           if (nComps == inheritFrom$nComps){ # The inheriting parameters have the same model structure
             for (param in names(inheritModellist$sersic)) {
@@ -715,9 +717,9 @@ for (galName in galList){ # loop through galaxies
                 if (param == "xcen" || param == "ycen" || param == "ang" || param == "box"){ # These params should remain the same from 1comp -> 2comp.
                   modellist0$sersic[[param]] = rep(inheritModellist$sersic[[param]],2)
                 } else if (param == "mag") { # use bulgeFrac IF given, ELSE estimate bulgeFrac from nSer
-                  modellist0$sersic[[param]] = divide_magnitude(inheritModellist$sersic[[param]], frac = if (is.null(bulgeFrac)) get_B2T(inheritModellist$sersic$nser) else bulgeFrac)
-                } else if (param == "re") { # arbitrary 0.33:1 (Bulge:Disk) divisions of effective radii
-                  modellist0$sersic[[param]] = c(0.33*inheritModellist$sersic[[param]],1.0*inheritModellist$sersic[[param]])
+                  modellist0$sersic[[param]] = divide_magnitude(inheritModellist$sersic[[param]], frac = get_B2T(inheritModellist$sersic$nser))
+                } else if (param == "re") { # arbitrary 0.333:1 (Bulge:Disk) divisions of effective radii
+                  modellist0$sersic[[param]] = c(0.333*inheritModellist$sersic[[param]],1.0*inheritModellist$sersic[[param]])
                 } else if (param == "nser") { # Assume nothing about the bulge!
                   modellist0$sersic[[param]] = c(4,1)
                 } else if (param == "axrat") { # Assume axial ratio is describing that of the disk only; assume spherical bulge
@@ -726,11 +728,12 @@ for (galName in galList){ # loop through galaxies
               } # END IF param is to be inheritted
             } # END loop over parameters
           } # END 1comp --> 2comp 
+          
+          rm(tempEnvir) # remove the temporary environment from memory
+          
         } else { # RData file did not exist
-          cat(paste("\nWARNING: ",galName," does not has existing .RData file for: run='",inheritFrom$form,"'; band='",inheritFrom$band,"'; nComps='",inheritFrom$nComps,"'.\n",sep=""))
+          cat(paste("\nWARNING: ",galName," does not has existing .RData file for: run='",inheritFrom$run,"'; band='",inheritFrom$band,"'; nComps='",inheritFrom$nComps,"'.\n",sep=""))
         }
-        
-        rm(envirFile,tempEnvir) # remove the temporary environment from memory
       }
       
       
@@ -739,6 +742,7 @@ for (galName in galList){ # loop through galaxies
       ####################################
       if(verb){cat("INFO: Defining ProFit inputs.\n")}
       if (nComps == 1){
+        # Assign the modellist
         modellist = modellist0
         
         # Parameters to fit
@@ -809,6 +813,7 @@ for (galName in galList){ # loop through galaxies
         
         # END Single Sersic 
       } else if (nComps == 2){
+        # Assign the modellist
         modellist = modellist0
         
         # Parameters to fit
@@ -902,18 +907,13 @@ for (galName in galList){ # loop through galaxies
                              modellist=modellist, tofit=tofit, tolog=tolog, intervals=intervals, priors=priors,
                              magzero=zeroPoint, algo.func=fitMode, like.func=likeFunction, verbose=FALSE)
       
-      ### Add constraints if given
-      if (!is.null(constraints)){
-        Data$constraints = constraints
-      }
-      
       ##################################################
       #####   Improve Initial Guesses (Isophotal)  #####
       ##################################################
       
       ## Attempt to improve initial guesses via Isophote fitting:
       # Only run if running 2 components and the image does not contain NaN padding (i.e. galaxies on frame edges).
-      if (improveInits == TRUE && nComps == 2 && is.null(inheritFrom)){
+      if (improveInits == TRUE && nComps == 2){
         if(verb){cat("INFO: Attempting to improve initial guess.\n")}
         if (output && outputIsophotes){
           isophotesFilename = paste(baseFilename,"_Isophotes.png",sep='')
@@ -945,9 +945,9 @@ for (galName in galList){ # loop through galaxies
         ## Interval bounds:
         # Mag (B/D): 10 - 25
         # Re (B/D): 0.25 - 100
-        # nSer (B): 1.25 - 20; nSer (D): 0.5 - 1.5
-        lower = c(10,log10(0.25),log10(1.25),10,log10(0.25),log10(0.5))
-        upper = c(25,log10(100), log10(20.0),25,log10(100), log10(1.5))
+        # nSer (B): 1.25 - 20; nSer (D): 0.9 - 1.1
+        lower = c(10,log10(0.25),log10(1.25),10,log10(0.25),log10(0.9))
+        upper = c(25,log10(100), log10(20.0),25,log10(100), log10(1.1))
         
         # Run L-BFGS-B optimisation:
         if(verb){cat("INFO: Running BFGS 1D isophotal optimisation.\n")}
@@ -1030,7 +1030,7 @@ for (galName in galList){ # loop through galaxies
       ##############################################################
       
       # Attempt a LaplaceApproximation() fit:
-      if (improveInits==TRUE && is.null(inheritFrom)) { # LaplaceApproximation LM fit
+      if (improveInits==TRUE) { # LaplaceApproximation LM fit
         if(verb){cat("INFO: Attempting to improve inital guess with LaplaceApproximation()\n")}
         Data$algo.func = "LA" # Change optimising algorithm
         LAFit = LaplaceApproximation(profitLikeModel,parm = Data$init, Data = Data, Iterations=1e3, Method = 'LM', CovEst='Identity', sir = FALSE)
@@ -1069,7 +1069,20 @@ for (galName in galList){ # loop through galaxies
         # If solution has converged, set the LAFit solution as the initial guess
         if (LAValid==TRUE){
           if(verb){cat("INFO: Replacing initial model with LAFit solution.\n")}
-          Data$init = LAFit$Summary1[,1]
+          if (nComps == 1){
+            # 1comp: Replace all parameters fit with LaplacesApproximation().
+            Data$init = LAFit$Summary1[,1] 
+          } else if (nComps == 2){
+            # 2comp: Only replace postional parameters, effective radius and magnitude; leave Sersic indices unchanged.
+            if (tofit$sersic$xcen[1]) {Data$init["sersic.xcen1"] = LAFit$Summary1[,1]["sersic.xcen1"]}
+            if (tofit$sersic$ycen[1]) {Data$init["sersic.ycen1"] = LAFit$Summary1[,1]["sersic.ycen1"]}
+            if (tofit$sersic$mag[1]) {Data$init["sersic.mag1"] = LAFit$Summary1[,1]["sersic.mag1"]}
+            if (tofit$sersic$mag[2]) {Data$init["sersic.mag2"] = LAFit$Summary1[,1]["sersic.mag2"]}
+            if (tofit$sersic$re[1]) {Data$init["sersic.re1"] = LAFit$Summary1[,1]["sersic.re1"]}
+            if (tofit$sersic$re[2]) {Data$init["sersic.re2"] = LAFit$Summary1[,1]["sersic.re2"]}
+            if (tofit$sersic$ang[2]) {Data$init["sersic.ang2"] = LAFit$Summary1[,1]["sersic.ang2"]}
+            if (tofit$sersic$axrat[2]) {Data$init["sersic.axrat2"] = LAFit$Summary1[,1]["sersic.axrat2"]}
+          }
         } else {
           if(verb){cat("INFO: LAFit solution did not converge.\n")}
         }
@@ -1078,6 +1091,10 @@ for (galName in galList){ # loop through galaxies
         LAValid = FALSE
       } # END LAFit optimisation
       
+      ### Add constraints if given
+      if (!is.null(constraints)){
+        Data$constraints = constraints
+      }
       
       ### Save initial guess plots to file
       if (output  && outputInitial){
@@ -1138,8 +1155,8 @@ for (galName in galList){ # loop through galaxies
             }
           }
           
-          cornerFilename = paste(baseFilename,"_CornerPlot.png",sep='')
-          png(paste(outputDir,cornerFilename,sep='/'),width=2400,height=2000,pointsize=28)
+          posteriorsFilename = paste(baseFilename,"_MCMCPosteriors.png",sep='')
+          png(paste(outputDir,posteriorsFilename,sep='/'),width=2400,height=2000,pointsize=28)
           capture.output( # Use capture.output to suppress LA outputs
             magtri(LDFit$Posterior1[,par0:NCOL(LDFit$Posterior1)],samples=1000,samptype='end',grid=TRUE,tick=FALSE),
             file = '/dev/null' # Redirect output to /dev/null
@@ -1246,9 +1263,9 @@ for (galName in galList){ # loop through galaxies
       
       ### Create Mask object ###
       chisqMap = (Data$image - optimImage)/sigma # Create a map of the chi^2 values across the image
-      mask = (abs(chisqMap) >= 4.0 & Data$region)*1 # A map where 1 = pixels within the segMap that have a |chisq| >= 4.0
       
       if (saveMask){ # Mask Map
+        mask = (abs(chisqMap) >= 4.0 & Data$region)*1 # A map where 1 = pixels within the segMap that have a |chisq| >= 4.0
         if(verb){cat("INFO: Saving mask map.\n")}
         maskOutFilename = paste(galName,"_",band,"_Mask.fits",sep="")
         writeFITSim(mask, file = paste(galsDir,galName,band,maskOutFilename,sep='/'))
