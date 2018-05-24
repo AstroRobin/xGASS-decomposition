@@ -68,6 +68,7 @@ if (!exists("nDFromFit")) {nDFromFit = FALSE}
 if (!exists("posOffset")) {posOffset = 10}
 if (!exists("saveMask")) {saveMask = TRUE}
 if (!exists("loadMask")) {loadMask = FALSE}
+if (!exists("segMapBand")) {segMapBand = NULL}
 
 ###################################################################
 ######################### DEFINE FUNCTIONS ########################
@@ -475,8 +476,9 @@ for (galName in galList){ # loop through galaxies
     ###########################################################
     
     if (loadSegMap == TRUE){ # Load the segmentation image from galaxy data directory.
-      segMapFilename = paste(galName,"_",band,"_SegMap.fits",sep="") # The name of the segmentation fits file.
-      segMapFile = paste(galsDir,galName,band,segMapFilename,sep='/') # The path to the segmentation fits file.
+      # "if (is.null(segMapBand)) band else segMapBand" gives 'segMapBand' if it is not NULL, else gives the current 'band'
+      segMapFilename = paste(galName,"_",if (is.null(segMapBand)) band else segMapBand,"_SegMap.fits",sep="") # The name of the segmentation fits file.
+      segMapFile = paste(galsDir,galName,if (is.null(segMapBand)) band else segMapBand,segMapFilename,sep='/') # The path to the segmentation fits file.
       if (!file.exists(segMapFile)){cat(paste("\nWARNING: \"",segMapFile,"\" does not exist! Making segmentation map from image instead.\n",sep=""))}
     }
     
@@ -612,8 +614,8 @@ for (galName in galList){ # loop through galaxies
     
     ############# Loop over num. components #############
     for (nComps in compList){ # loop through number of components.
-      if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
       if (!exists("nComps")){nComps = compList[1]}
+      if(verb){cat(paste("\n* ",galName," * [band = ",band,"; comps = ",nComps,"]"," (",count,"/",length(galList),")\n",sep=""))}
       
       # Define the base file path for output files
       baseFilename = paste(galName,"-",run,"_",band,"_",nComps,"comp",sep="")
@@ -848,14 +850,14 @@ for (galName in galList){ # loop through galaxies
         if (usePriors){
           stdevs = list(
             sersic = list(
-              xcen= c(priorSigmas[1],priorSigmas[1]),
-              ycen= c(priorSigmas[2],priorSigmas[2]),
-              mag= c(priorSigmas[3],priorSigmas[3]),
-              re= c(priorSigmas[4],priorSigmas[4]),
-              nser= c(priorSigmas[5],priorSigmas[5]),
-              ang= c(priorSigmas[6],priorSigmas[6]),
-              axrat= c(priorSigmas[7],priorSigmas[7]),
-              box= c(priorSigmas[8],priorSigmas[8])
+              xcen= rep(priorSigmas[1],2),
+              ycen= rep(priorSigmas[2],2),
+              mag= rep(priorSigmas[3],2),
+              re= rep(priorSigmas[4],2),
+              nser= rep(priorSigmas[5],2),
+              ang= rep(priorSigmas[6],2),
+              axrat= rep(priorSigmas[7],2),
+              box= rep(priorSigmas[8],2)
             )
           )
           
