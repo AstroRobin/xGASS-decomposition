@@ -698,7 +698,13 @@ for (galName in galList){ # loop through galaxies
       # If inheritFrom, replace initial parameters with results from the specified previous optimisation run.
       if (!is.null(inheritFrom)){
         # Get the inheriting RData file
-        envirFile = paste(galName,"-",inheritFrom$run,"_",inheritFrom$band,"_",inheritFrom$nComps,"comp_WorkSpace.RData",sep="")
+        if (is.null(inheritFrom$nComps)) { # If no component specified, use the same no. of components.
+          nCompsInherit = nComps
+        } else { # Otherwise, use the specified no. of components.
+          nCompsInherit = inheritFrom$nComps
+        } 
+        
+        envirFile = paste(galName,"-",inheritFrom$run,"_",inheritFrom$band,"_",nCompsInherit,"comp_WorkSpace.RData",sep="")
         
         if (file.exists( paste(galsDir,galName,"Fitting",inheritFrom$run,envirFile,sep="/") )){
           tempEnvir = new.env() # Create temporary envronment to place workspace of inheriting optimisation run.
@@ -707,7 +713,7 @@ for (galName in galList){ # loop through galaxies
           # Load in the optimised model from the previous fit
           inheritModellist = get('optimModellist',tempEnvir)
           
-          if (nComps == inheritFrom$nComps){ # The inheriting parameters have the same model structure
+          if (nComps == nCompsInherit){ # The inheriting parameters have the same model structure
             for (param in names(inheritModellist$sersic)) {
               if (inheritParams$sersic[[param]] == TRUE){
                 modellist0$sersic[[param]] = inheritModellist$sersic[[param]]
@@ -734,7 +740,7 @@ for (galName in galList){ # loop through galaxies
           rm(tempEnvir) # remove the temporary environment from memory
           
         } else { # RData file did not exist
-          cat(paste("\nWARNING: ",galName," does not has existing .RData file for: run='",inheritFrom$run,"'; band='",inheritFrom$band,"'; nComps='",inheritFrom$nComps,"'.\n",sep=""))
+          cat(paste("\nWARNING: ",galName," does not has existing .RData file for: run='",inheritFrom$run,"'; band='",inheritFrom$band,"'; nComps='",nCompsInherit,"'.\n",sep=""))
         }
       }
       
@@ -798,8 +804,8 @@ for (galName in galList){ # loop through galaxies
         # The hard intervals should also be specified in linear space.
         intervals=list(
           sersic=list(
-            xcen=list(lim=c(inits$xcen[mainIndex]-10,inits$xcen[mainIndex]+10)),
-            ycen=list(lim=c(inits$ycen[mainIndex]-10,inits$ycen[mainIndex]+10)),
+            xcen=list(lim=c(modellist$sersic$xcen-posOffset,modellist$sersic$xcen+posOffset)),
+            ycen=list(lim=c(modellist$sersic$ycen-posOffset,modellist$sersic$ycen+posOffset)),
             mag=list(lim=c(7,zeroPoint)),
             re=list(lim=c(0.25,100)),
             nser=list(lim=c(0.25,20)),
@@ -869,8 +875,8 @@ for (galName in galList){ # loop through galaxies
         # The hard intervals should also be specified in linear space.
         intervals=list(
           sersic=list(
-            xcen=list(lim=c(inits$xcen[mainIndex]-10,inits$xcen[mainIndex]+10),lim=c(inits$xcen[mainIndex]-10,inits$xcen[mainIndex]+10)),
-            ycen=list(lim=c(inits$ycen[mainIndex]-10,inits$ycen[mainIndex]+10),lim=c(inits$ycen[mainIndex]-10,inits$ycen[mainIndex]+10)),
+            xcen=list(lim=c(modellist$sersic$xcen[1]-posOffset,modellist$sersic$xcen[1]+posOffset),lim=c(modellist$sersic$xcen[1]-posOffset,modellist$sersic$xcen[1]+posOffset)),
+            ycen=list(lim=c(modellist$sersic$ycen[1]-posOffset,modellist$sersic$ycen[1]+posOffset),lim=c(modellist$sersic$ycen[1]-posOffset,modellist$sersic$ycen[1]+posOffset)),
             mag=list(lim=c(10,25),lim=c(10,25)),
             re=list(lim=c(0.25,100),lim=c(0.25,100)),
             nser=list(lim=c(1.25,20.0),lim=c(0.5,1.5)),
