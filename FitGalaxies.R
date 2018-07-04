@@ -540,6 +540,10 @@ for (galName in galList){ # loop through galaxies
     mainID = find_main_ID(segmentation) # The main source is the one with the smallest separation from the centre
     mainIndex = find_main_index(segmentation)
     
+    # Clean up segmentation around frame NaN edges
+    segmentation$segim[is.na(image) & segmentation$segim] = 0
+    segmentation$objects[is.na(image) & segmentation$objects] = 0
+    
     #Create segmentation image from only the central source
     segMap = segmentation$segim
     segMap[segMap!=mainID]=0 # only use the central source
