@@ -28,6 +28,7 @@ from math import nan
 import numpy as np
 
 import matplotlib.pyplot as plt # Plotting
+import matplotlib.colors as colors # Colour map normalisation
 from argparse import ArgumentParser # Parsing Arguments from sys.argv
 
 # Define constants
@@ -225,7 +226,7 @@ def main():
 	if (args.plot):
 		fig = plt.figure()
 		ax = fig.add_subplot(111)
-		ax.imshow(cutout.data,origin='lower')
+		ax.imshow(cutout.data,origin='lower',cmap="gray",norm=colors.PowerNorm(gamma=0.35))
 		plt.show()
 
 	outDims = np.array(cutout.data).shape
@@ -247,6 +248,25 @@ def main():
 	hdrCutout['CRPIX1'] = newRefPixels[0]
 	hdrCutout['CRPIX2'] = newRefPixels[1]
 
+	outputDir = '/'.join(outputPath.split('/')[:-1])
+
+	yes = {"yes","y",""}
+	no = {"no","n"}
+	current = outputDir.split('/')[0]
+	for folder in outputDir.split('/')[1:]:
+		current = "{0}/{1}".format(current,folder)
+		if not os.path.exists(current):
+			print("Directory \"{0}\" does not exist. Would you like to create it now?".format(current))
+			choice = input(">>> ").lower()
+			if (choice in yes):
+				os.system("mkdir {0}".format(current))
+			elif (choice in no):
+				print("Exiting.")
+				exit()
+			else:
+				print("ERROR: Invalid response given.")
+
+		
 	newhdu = pyfits.PrimaryHDU(cutout.data,header=hdrCutout)
 	hdulist = pyfits.HDUList([newhdu])
 	hdulist.writeto(outputPath,overwrite=True)
