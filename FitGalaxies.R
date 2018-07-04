@@ -197,7 +197,6 @@ find_main_ID = function(seg) # Determine the main (central) source ID in the ima
   return(mainID)
 }
 
-
 write_output = function(file, name, nComps, init, optim, chisq, time, stat){ # Write optimisation result to file
   # <param: file [str]> - The file to append the results to.
   # <param: name [str]> - The name of the galaxy.
@@ -359,6 +358,7 @@ for (band in bandList){
   }
   
   rm(imgPath,imgFilename,psfPath,psfFilename,galName,band)
+
 }
 
 ###################################################################
@@ -464,6 +464,7 @@ for (galName in galList){ # loop through galaxies
     
     # Subtract the background sky
     if (subSky){
+
       if(verb){cat("INFO: Subtracting background sky from image.\n")}
       image = if (skyAsGrid) (image0 - skyMap$sky) else (image0 - skyVal)
     } else {
@@ -496,6 +497,7 @@ for (galName in galList){ # loop through galaxies
       segmentation$segstats =  profoundSegimStats(image, segmentation$segim, magzero=zeroPoint, gain=gain, pixscale=pixScale, rotstats=TRUE, boundstats=TRUE)
       
     } else { # Create a new segmentation image.
+
       
       if(verb){cat("INFO: Creating Segmentation image.\n")}
       
@@ -1069,6 +1071,7 @@ for (galName in galList){ # loop through galaxies
           ### Check whether bulge dominates flux in outer regions.
           bulgeSB = profitFlux2SB(bulgeLAfit, pixscale=pixScale)
           diskSB = profitFlux2SB(diskLAfit, pixscale=pixScale)
+
           for (ii in seq(rCut,(rMax-rMin)/rDiff+1,1)){# Loop through increasing radius points from rCut
             if (bulgeSB[ii] < diskSB[ii]){
               LAValid = FALSE
