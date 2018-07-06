@@ -197,6 +197,7 @@ find_main_ID = function(seg) # Determine the main (central) source ID in the ima
   return(mainID)
 }
 
+
 write_output = function(file, name, nComps, init, optim, chisq, time, stat){ # Write optimisation result to file
   # <param: file [str]> - The file to append the results to.
   # <param: name [str]> - The name of the galaxy.
@@ -358,7 +359,6 @@ for (band in bandList){
   }
   
   rm(imgPath,imgFilename,psfPath,psfFilename,galName,band)
-
 }
 
 ###################################################################
@@ -464,7 +464,6 @@ for (galName in galList){ # loop through galaxies
     
     # Subtract the background sky
     if (subSky){
-
       if(verb){cat("INFO: Subtracting background sky from image.\n")}
       image = if (skyAsGrid) (image0 - skyMap$sky) else (image0 - skyVal)
     } else {
@@ -497,7 +496,6 @@ for (galName in galList){ # loop through galaxies
       segmentation$segstats =  profoundSegimStats(image, segmentation$segim, magzero=zeroPoint, gain=gain, pixscale=pixScale, rotstats=TRUE, boundstats=TRUE)
       
     } else { # Create a new segmentation image.
-
       
       if(verb){cat("INFO: Creating Segmentation image.\n")}
       
@@ -1071,7 +1069,6 @@ for (galName in galList){ # loop through galaxies
           ### Check whether bulge dominates flux in outer regions.
           bulgeSB = profitFlux2SB(bulgeLAfit, pixscale=pixScale)
           diskSB = profitFlux2SB(diskLAfit, pixscale=pixScale)
-
           for (ii in seq(rCut,(rMax-rMin)/rDiff+1,1)){# Loop through increasing radius points from rCut
             if (bulgeSB[ii] < diskSB[ii]){
               LAValid = FALSE
@@ -1108,7 +1105,34 @@ for (galName in galList){ # loop through galaxies
       
       ### Add constraints if given
       if (!is.null(constraints)){
-        Data$constraints = constraints
+        if (typeof(constraints) == "closure"){ # If a function was given
+          # Set constraints as a function
+          Data$constraints = constraints
+        } else if (typeof(constraints) == "list"){ # If a list with reference to a previous fit was given
+          # Get the inheriting RData file
+          if (is.null(constraints$nComps)) { # If no component specified, use the same no. of components.
+            nCompsInherit = nComps
+          } else { # Otherwise, use the specified no. of components.
+            nCompsInherit = constraints$nComps
+          } 
+          
+          # Extract constraints from a previous fit.
+          envirFile = paste(galName,"-",constraints$run,"_",constraints$band,"_",nCompsInherit,"comp_WorkSpace.RData",sep="")
+          
+          if (file.exists( paste(galsDir,galName,"Fitting",constraints$run,envirFile,sep="/") )){
+            tempEnvir = new.env() # Create temporary envronment to place workspace of inheriting optimisation run.
+            load(paste(galsDir,galName,"Fitting",constraints$run,envirFile,sep="/"), envir=tempEnvir) # load inheriting RData into temporary environment
+            
+            # Load in the optimised model from the previous fit
+            constraints = get('Data',tempEnvir)$constraints
+            Data$constraints = constraints
+            
+            rm(tempEnvir)
+          }
+          
+        } else {
+          cat("\nWARNING: The specified constraints parameter is neither a function nor a list. Ignoring constraints.\n")
+        }
       }
       
       ### Save initial guess plots to file
