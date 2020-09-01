@@ -614,7 +614,7 @@ for (galName in galList){ # loop through galaxies
     
     if (saveSigma && !loadSigma){ # Sigma Map
       if(verb){cat("INFO: Saving sigma map.\n")}
-      sigmaOutFilename = paste(galName,"_",band,"_Sigma.fits",sep="")
+      sigmaOutFilename = paste(galName,"_",band,"_SigmaMap.fits",sep="")
       writeFITSim(sigma, file = paste(galsDir,galName,band,sigmaOutFilename,sep='/'))
     }
     
